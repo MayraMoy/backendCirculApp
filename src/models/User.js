@@ -10,9 +10,19 @@ const userSchema = new mongoose.Schema({
     enum: ['user', 'gestor', 'coordinador', 'admin'],
     default: 'user'
   },
-  verified: { type: Boolean, default: false }, // para RF01
-  phone: { type: String },
-  location: { type: String },
+  active: {
+    type: Boolean,
+    default: true
+  },
+  verified: { 
+    type: Boolean, default: false 
+  }, // para RF01
+  phone: { 
+    type: String 
+  },
+  location: { 
+    type: String 
+  },
   bio: { type: String, maxlength: 500 }
 }, { timestamps: true });
 

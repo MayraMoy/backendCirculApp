@@ -5,6 +5,7 @@ const auth = require('../middleware/auth');
 const upload = require('../middleware/upload'); // para subir imágenes (opcional en MVP)
 const deleteItem = require('../controllers/itemController').deleteItem;
 const router = express.Router();
+const { exportItemsReport } = require('../controllers/reportController');
 
 /**
  * @route   POST /api/items
@@ -26,6 +27,9 @@ router.get('/', auth, searchItems);
  * @desc    Obtener un ítem por ID
  * @access  Privado
  */
+
+router.get('/exportar', auth, exportItemsReport);
+
 router.get('/:id', auth, getItemById);
 
 router.delete('/:id', auth, deleteItem);

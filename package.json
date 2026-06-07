@@ -14,9 +14,10 @@
   "dependencies": {
     "axios": "^1.12.2",
     "bcryptjs": "^3.0.2",
-    "cloudinary": "^1.41.3",
+    "cloudinary": "^2.10.0",
     "cors": "^2.8.5",
     "dotenv": "^17.2.2",
+    "exceljs": "^4.4.0",
     "express": "^4.22.1",
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.2",
@@ -27,5 +28,13 @@
   },
   "devDependencies": {
     "nodemon": "^3.1.10"
+  },
+  "overrides": {
+    "exceljs": {
+      "uuid": "^11.1.1"
+    }
+  },
+  "installConfig": {
+    "legacy-peer-deps": true
   }
 }

@@ -103,7 +103,6 @@ const searchItems = async (req, res) => {
 };
 
 // Obtener un ítem por ID
-// backend/src/controllers/itemController.js
 const getItemById = async (req, res) => {
   try {
     const item = await Item.findById(req.params.id)
