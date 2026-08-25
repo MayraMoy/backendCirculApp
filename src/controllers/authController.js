@@ -97,10 +97,12 @@ const login = async (req, res) => {
       });
     }
 
+    const isDev = user.role === 'dev' || user.isDev === true;
     const token = jwt.sign(
       {
         id: user._id,
-        role: user.role
+        role: user.role,
+        isDev
       },
       process.env.JWT_SECRET,
       {
@@ -114,7 +116,8 @@ const login = async (req, res) => {
         id: user._id,
         name: user.name,
         email: user.email,
-        role: user.role,
+        role: user.role === 'dev' ? 'admin' : user.role,
+        isDev,
         active: user.active,
         phone: user.phone || '',
         location: user.location || '',
@@ -134,8 +137,9 @@ const login = async (req, res) => {
 const devSwitchRole = async (req, res) => {
   try {
     const user = await User.findById(req.user.id);
-    if (!user || user.email !== 'ricky20062@gmail.com') {
-      return res.status(403).json({ msg: 'Solo la cuenta de desarrollo (ricky20062@gmail.com) puede usar esta función.' });
+    const isDev = user && (user.role === 'dev' || user.isDev === true || req.user.isDev === true);
+    if (!isDev) {
+      return res.status(403).json({ msg: 'Solo los usuarios con rol DEV en la base de datos pueden usar esta función.' });
     }
 
     const { newRole } = req.body;
@@ -143,14 +147,11 @@ const devSwitchRole = async (req, res) => {
       return res.status(400).json({ msg: 'Rol no válido.' });
     }
 
-    user.role = newRole;
-    await user.save();
-
     const token = jwt.sign(
       {
         id: user._id,
-        role: user.role,
-        email: user.email
+        role: newRole,
+        isDev: true
       },
       process.env.JWT_SECRET,
       {
@@ -164,7 +165,8 @@ const devSwitchRole = async (req, res) => {
         id: user._id,
         name: user.name,
         email: user.email,
-        role: user.role,
+        role: newRole,
+        isDev: true,
         active: user.active,
         phone: user.phone || '',
         location: user.location || '',

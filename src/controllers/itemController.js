@@ -112,7 +112,7 @@ const updateItem = async (req, res) => {
     if (!item) return res.status(404).json({ msg: 'Ítem no encontrado.' });
 
     // Verificar permisos: dueño, admin o cuenta dev
-    if (item.ownerId.toString() !== req.user.id && req.user.role !== 'admin' && req.user.email !== 'ricky20062@gmail.com') {
+    if (item.ownerId.toString() !== req.user.id && req.user.role !== 'admin' && req.user.role !== 'dev' && !req.user.isDev) {
       return res.status(403).json({ msg: 'No tienes permiso para editar este material.' });
     }
 
@@ -177,7 +177,7 @@ const deleteItem = async (req, res) => {
     const item = await Item.findById(req.params.id);
     if (!item) return res.status(404).json({ msg: 'Ítem no encontrado.' });
 
-    if (item.ownerId.toString() !== req.user.id && req.user.role !== 'admin' && req.user.email !== 'ricky20062@gmail.com') {
+    if (item.ownerId.toString() !== req.user.id && req.user.role !== 'admin' && req.user.role !== 'dev' && !req.user.isDev) {
       return res.status(403).json({ msg: 'No tienes permiso para eliminar este ítem.' });
     }
 
@@ -191,7 +191,7 @@ const deleteItem = async (req, res) => {
 const markAsBaled = async (req, res) => {
   try {
     // Verificar rol o cuenta dev
-    if (req.user.role !== 'gestor' && req.user.role !== 'admin' && req.user.email !== 'ricky20062@gmail.com') {
+    if (req.user.role !== 'gestor' && req.user.role !== 'admin' && req.user.role !== 'dev' && !req.user.isDev) {
       return res.status(403).json({ msg: 'Solo los gestores y administradores pueden marcar materiales como fardados.' });
     }
 

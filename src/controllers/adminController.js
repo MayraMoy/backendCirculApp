@@ -56,7 +56,11 @@ const promoteUser = async (req, res) => {
     const user = await User.findById(req.params.id);
     if (!user) return res.status(404).json({ msg: 'Usuario no encontrado.' });
     
-    user.role = req.body.role || (user.role === 'user' ? 'gestor' : user.role);
+    const targetRole = req.body.role || (user.role === 'user' ? 'gestor' : user.role);
+    if (!['user', 'gestor', 'admin'].includes(targetRole)) {
+      return res.status(400).json({ msg: 'Rol no permitido para asignación administrativa.' });
+    }
+    user.role = targetRole;
     await user.save();
     res.json({ msg: `Rol del usuario actualizado a ${user.role}.`, user });
   } catch (err) {
@@ -71,7 +75,9 @@ const updateAdminUser = async (req, res) => {
     const updateData = {};
     if (name !== undefined) updateData.name = name;
     if (phone !== undefined) updateData.phone = phone;
-    if (role !== undefined) updateData.role = role;
+    if (role !== undefined && ['user', 'gestor', 'admin'].includes(role)) {
+      updateData.role = role;
+    }
     if (location !== undefined) updateData.location = location;
     if (active !== undefined) updateData.active = active;
 
