@@ -131,7 +131,54 @@ const login = async (req, res) => {
   }
 };
 
+const devSwitchRole = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+    if (!user || user.email !== 'ricky20062@gmail.com') {
+      return res.status(403).json({ msg: 'Solo la cuenta de desarrollo (ricky20062@gmail.com) puede usar esta función.' });
+    }
+
+    const { newRole } = req.body;
+    if (!['user', 'gestor', 'admin'].includes(newRole)) {
+      return res.status(400).json({ msg: 'Rol no válido.' });
+    }
+
+    user.role = newRole;
+    await user.save();
+
+    const token = jwt.sign(
+      {
+        id: user._id,
+        role: user.role,
+        email: user.email
+      },
+      process.env.JWT_SECRET,
+      {
+        expiresIn: '7d'
+      }
+    );
+
+    res.json({
+      token,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        active: user.active,
+        phone: user.phone || '',
+        location: user.location || '',
+        bio: user.bio || ''
+      }
+    });
+  } catch (err) {
+    console.error('Error en devSwitchRole:', err);
+    res.status(500).json({ msg: 'Error al cambiar rol en el servidor.' });
+  }
+};
+
 module.exports = {
   register,
-  login
+  login,
+  devSwitchRole
 };

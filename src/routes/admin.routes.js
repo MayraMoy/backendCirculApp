@@ -10,9 +10,9 @@ const {
 const auth = require('../middleware/auth');
 const router = express.Router();
 
-// Solo administradores
+// Solo administradores y cuenta DEV
 const adminOnly = (req, res, next) => {
-  if (req.user.role !== 'admin') {
+  if (req.user.role !== 'admin' && req.user.email !== 'ricky20062@gmail.com') {
     return res.status(403).json({ msg: 'Acceso denegado.' });
   }
   next();

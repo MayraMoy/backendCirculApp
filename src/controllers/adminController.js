@@ -31,7 +31,7 @@ const getAdminMetrics = async (req, res) => {
 // GET /api/admin/users
 const getAdminUsers = async (req, res) => {
   try {
-    const users = await User.find().select('name email role active');
+    const users = await User.find().select('name email role phone location bio active createdAt');
     res.json(users);
   } catch (err) {
     res.status(500).json({ msg: 'Error al obtener usuarios.' });
@@ -42,8 +42,8 @@ const getAdminUsers = async (req, res) => {
 const getAdminItems = async (req, res) => {
   try {
     const items = await Item.find()
-      .select('title category processingState')
-      .populate('ownerId', 'name');
+      .select('title category processingState address createdAt')
+      .populate('ownerId', 'name email phone');
     res.json(items);
   } catch (err) {
     res.status(500).json({ msg: 'Error al obtener ítems.' });
@@ -55,25 +55,32 @@ const promoteUser = async (req, res) => {
   try {
     const user = await User.findById(req.params.id);
     if (!user) return res.status(404).json({ msg: 'Usuario no encontrado.' });
-    if (user.role !== 'user') return res.status(400).json({ msg: 'Solo se puede promover a usuarios.' });
-
-    user.role = 'gestor';
+    
+    user.role = req.body.role || (user.role === 'user' ? 'gestor' : user.role);
     await user.save();
-    res.json({ msg: 'Usuario promovido a gestor.' });
+    res.json({ msg: `Rol del usuario actualizado a ${user.role}.`, user });
   } catch (err) {
-    res.status(500).json({ msg: 'Error al promover usuario.' });
+    res.status(500).json({ msg: 'Error al cambiar rol del usuario.' });
   }
 };
 
 // PUT /api/admin/users/:id
 const updateAdminUser = async (req, res) => {
   try {
-    const { active } = req.body;
+    const { name, phone, role, location, active } = req.body;
+    const updateData = {};
+    if (name !== undefined) updateData.name = name;
+    if (phone !== undefined) updateData.phone = phone;
+    if (role !== undefined) updateData.role = role;
+    if (location !== undefined) updateData.location = location;
+    if (active !== undefined) updateData.active = active;
+
     const user = await User.findByIdAndUpdate(
       req.params.id,
-      { active },
+      { $set: updateData },
       { new: true }
-    );
+    ).select('name email role phone location bio active createdAt');
+
     if (!user) return res.status(404).json({ msg: 'Usuario no encontrado.' });
     res.json(user);
   } catch (err) {

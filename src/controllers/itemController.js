@@ -76,7 +76,7 @@ const searchItems = async (req, res) => {
     if (category) filter.category = category;
 
     // Obtener ítems
-    let items = await Item.find(filter).populate('ownerId', 'name email');
+    let items = await Item.find(filter).populate('ownerId', 'name email phone location');
 
     // Filtrado por proximidad (opcional)
     if (lat && lng && radius) {
@@ -102,11 +102,68 @@ const searchItems = async (req, res) => {
   }
 };
 
+// Actualizar un ítem (solo dueño o admin)
+const updateItem = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { title, description, category, address, lat, lng, keepImages } = req.body;
+
+    const item = await Item.findById(id);
+    if (!item) return res.status(404).json({ msg: 'Ítem no encontrado.' });
+
+    // Verificar permisos: dueño, admin o cuenta dev
+    if (item.ownerId.toString() !== req.user.id && req.user.role !== 'admin' && req.user.email !== 'ricky20062@gmail.com') {
+      return res.status(403).json({ msg: 'No tienes permiso para editar este material.' });
+    }
+
+    const updateData = {};
+    if (title !== undefined) updateData.title = title;
+    if (description !== undefined) updateData.description = description;
+    if (category !== undefined) updateData.category = category;
+    if (address !== undefined) updateData.address = address;
+    if (lat !== undefined && lng !== undefined) {
+      const latNum = parseFloat(lat);
+      const lngNum = parseFloat(lng);
+      if (!isNaN(latNum) && !isNaN(lngNum)) {
+        updateData.location = { lat: latNum, lng: lngNum };
+      }
+    }
+
+    // Manejo inteligente de imágenes conservadas vs eliminadas
+    let finalImages = [];
+    if (keepImages !== undefined) {
+      const keepArr = Array.isArray(keepImages) ? keepImages : [keepImages];
+      finalImages = item.images.filter(img => keepArr.includes(img));
+    } else {
+      finalImages = item.images || [];
+    }
+
+    // Subir nuevas imágenes enviadas
+    if (req.files && req.files.length > 0) {
+      const newUrls = req.files.map(file => file.path || file.url);
+      finalImages = [...finalImages, ...newUrls];
+    }
+
+    updateData.images = finalImages;
+
+    const updatedItem = await Item.findByIdAndUpdate(
+      id,
+      { $set: updateData },
+      { new: true }
+    ).populate('ownerId', 'name email phone location');
+
+    res.json(updatedItem);
+  } catch (err) {
+    console.error('Error en updateItem:', err);
+    res.status(500).json({ msg: 'Error al actualizar la publicación.' });
+  }
+};
+
 // Obtener un ítem por ID
 const getItemById = async (req, res) => {
   try {
     const item = await Item.findById(req.params.id)
-      .populate('ownerId', 'name email phone'); // ← ¡incluye 'phone' aquí!
+      .populate('ownerId', 'name email phone location');
     if (!item) return res.status(404).json({ msg: 'Ítem no encontrado.' });
     res.json(item);
   } catch (err) {
@@ -114,13 +171,13 @@ const getItemById = async (req, res) => {
   }
 };
 
-// Eliminar un ítem (solo dueño o admin)
+// Eliminar un ítem (dueño, admin o cuenta dev)
 const deleteItem = async (req, res) => {
   try {
     const item = await Item.findById(req.params.id);
     if (!item) return res.status(404).json({ msg: 'Ítem no encontrado.' });
 
-    if (item.ownerId.toString() !== req.user.id && req.user.role !== 'admin') {
+    if (item.ownerId.toString() !== req.user.id && req.user.role !== 'admin' && req.user.email !== 'ricky20062@gmail.com') {
       return res.status(403).json({ msg: 'No tienes permiso para eliminar este ítem.' });
     }
 
@@ -133,9 +190,9 @@ const deleteItem = async (req, res) => {
 
 const markAsBaled = async (req, res) => {
   try {
-    // Verificar rol
-    if (req.user.role !== 'gestor') {
-      return res.status(403).json({ msg: 'Solo los gestores pueden marcar materiales como fardados.' });
+    // Verificar rol o cuenta dev
+    if (req.user.role !== 'gestor' && req.user.role !== 'admin' && req.user.email !== 'ricky20062@gmail.com') {
+      return res.status(403).json({ msg: 'Solo los gestores y administradores pueden marcar materiales como fardados.' });
     }
 
     const { id } = req.params;
@@ -165,4 +222,4 @@ const markAsBaled = async (req, res) => {
   }
 };
 
-module.exports = { createItem, searchItems, getItemById, deleteItem, markAsBaled };
+module.exports = { createItem, searchItems, updateItem, getItemById, deleteItem, markAsBaled };
