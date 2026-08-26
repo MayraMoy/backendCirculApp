@@ -5,9 +5,10 @@ const validateMaterial = async (req, res) => {
   try {
     const { itemId, checklist, observations } = req.body;
 
-    // 1. Verificar rol
-    if (req.user.role !== 'gestor') {
-      return res.status(403).json({ msg: 'Solo los gestores pueden validar materiales.' });
+    // 1. Verificar rol (Gestor, Admin o Dev)
+    const isAuthorized = req.user.role === 'gestor' || req.user.role === 'admin' || req.user.role === 'dev' || req.user.isDev;
+    if (!isAuthorized) {
+      return res.status(403).json({ msg: 'Solo los gestores y administradores pueden validar materiales.' });
     }
 
     // 2. Validar ítem
@@ -19,18 +20,7 @@ const validateMaterial = async (req, res) => {
       return res.status(400).json({ msg: 'El ítem debe estar en estado "fardado" para validarlo.' });
     }
 
-    // 4. Validar checklist
-    const requiredChecks = ['limpieza', 'homogeneidad', 'compactado', 'etiquetado'];
-    if (!checklist || !Array.isArray(checklist) || checklist.length !== 4) {
-      return res.status(400).json({ msg: 'Checklist incompleto. Debe contener 4 ítems.' });
-    }
-
-    const missing = requiredChecks.filter(item => !checklist.includes(item));
-    if (missing.length > 0) {
-      return res.status(400).json({ msg: `Faltan ítems en el checklist: ${missing.join(', ')}` });
-    }
-
-    // 5. Actualizar ítem
+    // 4. Actualizar ítem
     item.processingState = 'validado';
     item.validatedBy = req.user.id;
     item.validationChecklist = checklist;

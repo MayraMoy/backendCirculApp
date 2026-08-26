@@ -7,8 +7,12 @@ const userSchema = new mongoose.Schema({
   password: { type: String, required: true },
   role: {
     type: String,
-    enum: ['user', 'gestor', 'coordinador', 'admin'],
+    enum: ['user', 'gestor', 'coordinador', 'admin', 'dev'],
     default: 'user'
+  },
+  isDev: {
+    type: Boolean,
+    default: false
   },
   active: {
     type: Boolean,
@@ -23,7 +27,9 @@ const userSchema = new mongoose.Schema({
   location: { 
     type: String 
   },
-  bio: { type: String, maxlength: 500 }
+  bio: { type: String, maxlength: 500 },
+  resetPasswordToken: { type: String },
+  resetPasswordExpires: { type: Date }
 }, { timestamps: true });
 
 userSchema.pre('save', async function (next) {

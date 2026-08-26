@@ -37,40 +37,52 @@ const createRating = async (req, res) => {
   }
 };
 
-// Obtener calificaciones recibidas por un usuario
+// Obtener calificaciones recibidas por un usuario con paginación
 const getRatingsForUser = async (req, res) => {
   try {
     const { userId } = req.params;
-    const ratings = await Rating.find({ ratedId: userId })
-      .populate('raterId', 'name')
-      .populate('itemId', 'title')
-      .sort({ createdAt: -1 });
+    const pageNum = parseInt(req.query.page, 10) || 1;
+    const limitNum = Math.min(parseInt(req.query.limit, 10) || 20, 50);
+    const skip = (pageNum - 1) * limitNum;
 
-    const total = ratings.length;
+    const allRatings = await Rating.find({ ratedId: userId });
+    const total = allRatings.length;
+
     if (total === 0) {
       return res.json({
         ratings: [],
         averages: { materialQuality: 0, punctuality: 0, standardCompliance: 0 },
-        total: 0
+        total: 0,
+        page: 1,
+        totalPages: 0
       });
     }
 
-    const avgQuality = (ratings.reduce((sum, r) => sum + r.materialQuality, 0) / total).toFixed(1);
-    const avgPunctuality = ratings.some(r => r.punctuality !== undefined)
-      ? (ratings.reduce((sum, r) => sum + (r.punctuality || 0), 0) / total).toFixed(1)
+    const paginatedRatings = await Rating.find({ ratedId: userId })
+      .populate('raterId', 'name')
+      .populate('itemId', 'title')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limitNum);
+
+    const avgQuality = (allRatings.reduce((sum, r) => sum + r.materialQuality, 0) / total).toFixed(1);
+    const avgPunctuality = allRatings.some(r => r.punctuality !== undefined)
+      ? (allRatings.reduce((sum, r) => sum + (r.punctuality || 0), 0) / total).toFixed(1)
       : 0;
-    const avgCompliance = ratings.some(r => r.standardCompliance !== undefined)
-      ? (ratings.reduce((sum, r) => sum + (r.standardCompliance || 0), 0) / total).toFixed(1)
+    const avgCompliance = allRatings.some(r => r.standardCompliance !== undefined)
+      ? (allRatings.reduce((sum, r) => sum + (r.standardCompliance || 0), 0) / total).toFixed(1)
       : 0;
 
     res.json({
-      ratings,
+      ratings: paginatedRatings,
       averages: {
         materialQuality: parseFloat(avgQuality),
         punctuality: parseFloat(avgPunctuality),
         standardCompliance: parseFloat(avgCompliance)
       },
-      total
+      total,
+      page: pageNum,
+      totalPages: Math.ceil(total / limitNum)
     });
   } catch (err) {
     console.error(err);
