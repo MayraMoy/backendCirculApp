@@ -31,7 +31,27 @@ const getAdminMetrics = async (req, res) => {
 // GET /api/admin/users
 const getAdminUsers = async (req, res) => {
   try {
-    const users = await User.find().select('name email role phone location bio active createdAt');
+    const pageNum = parseInt(req.query.page, 10) || 1;
+    const limitNum = Math.min(parseInt(req.query.limit, 10) || 100, 200);
+    const skip = (pageNum - 1) * limitNum;
+
+    const total = await User.countDocuments();
+    const totalPages = Math.ceil(total / limitNum) || 1;
+
+    const users = await User.find()
+      .select('name email role phone location bio active createdAt')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limitNum);
+
+    res.set('X-Total-Count', total.toString());
+    res.set('X-Total-Pages', totalPages.toString());
+    res.set('X-Current-Page', pageNum.toString());
+
+    if (req.query.format === 'paginated') {
+      return res.json({ users, total, page: pageNum, totalPages, limit: limitNum });
+    }
+
     res.json(users);
   } catch (err) {
     res.status(500).json({ msg: 'Error al obtener usuarios.' });
@@ -41,9 +61,28 @@ const getAdminUsers = async (req, res) => {
 // GET /api/admin/items
 const getAdminItems = async (req, res) => {
   try {
+    const pageNum = parseInt(req.query.page, 10) || 1;
+    const limitNum = Math.min(parseInt(req.query.limit, 10) || 100, 200);
+    const skip = (pageNum - 1) * limitNum;
+
+    const total = await Item.countDocuments();
+    const totalPages = Math.ceil(total / limitNum) || 1;
+
     const items = await Item.find()
       .select('title category processingState address createdAt')
-      .populate('ownerId', 'name email phone');
+      .populate('ownerId', 'name email phone')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limitNum);
+
+    res.set('X-Total-Count', total.toString());
+    res.set('X-Total-Pages', totalPages.toString());
+    res.set('X-Current-Page', pageNum.toString());
+
+    if (req.query.format === 'paginated') {
+      return res.json({ items, total, page: pageNum, totalPages, limit: limitNum });
+    }
+
     res.json(items);
   } catch (err) {
     res.status(500).json({ msg: 'Error al obtener ítems.' });

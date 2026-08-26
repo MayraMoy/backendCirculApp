@@ -5,15 +5,7 @@ const bcrypt = require('bcryptjs');
 const User = require('../models/User');
 
 const register = async (req, res) => {
-  const { name, email, password, role = 'user' } = req.body;
-
-  const validRoles = ['user', 'gestor', 'coordinador', 'admin'];
-
-  if (!validRoles.includes(role)) {
-    return res.status(400).json({
-      msg: 'Rol no permitido.'
-    });
-  }
+  const { name, email, password } = req.body;
 
   try {
     let user = await User.findOne({ email });
@@ -28,7 +20,7 @@ const register = async (req, res) => {
       name,
       email,
       password,
-      role
+      role: 'user' // 🔒 Forzado estrictamente para prevenir escalamiento de privilegios
     });
 
     await user.save();

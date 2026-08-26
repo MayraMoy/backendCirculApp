@@ -10,8 +10,8 @@ const createItem = async (req, res) => {
     // Convertir y validar coordenadas
     const latNum = parseFloat(lat);
     const lngNum = parseFloat(lng);
-    if (isNaN(latNum) || isNaN(lngNum)) {
-      return res.status(400).json({ msg: 'Latitud y longitud deben ser números válidos.' });
+    if (isNaN(latNum) || isNaN(lngNum) || latNum < -90 || latNum > 90 || lngNum < -180 || lngNum > 180) {
+      return res.status(400).json({ msg: 'Coordenadas de geolocalización inválidas (Latitud [-90, 90], Longitud [-180, 180]).' });
     }
 
     // Subir imágenes (si usas CloudinaryStorage, req.files ya tiene URLs)
@@ -75,8 +75,20 @@ const searchItems = async (req, res) => {
     // Filtro por categoría
     if (category) filter.category = category;
 
-    // Obtener ítems
-    let items = await Item.find(filter).populate('ownerId', 'name email phone location');
+    // Paginación y ordenamiento
+    const pageNum = parseInt(req.query.page, 10) || 1;
+    const limitNum = Math.min(parseInt(req.query.limit, 10) || 50, 100);
+    const skip = (pageNum - 1) * limitNum;
+
+    const total = await Item.countDocuments(filter);
+    const totalPages = Math.ceil(total / limitNum) || 1;
+
+    // Obtener ítems paginados
+    let items = await Item.find(filter)
+      .populate('ownerId', 'name email phone location')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limitNum);
 
     // Filtrado por proximidad (opcional)
     if (lat && lng && radius) {
@@ -93,6 +105,21 @@ const searchItems = async (req, res) => {
           return distance <= maxDistance;
         });
       }
+    }
+
+    res.set('X-Total-Count', total.toString());
+    res.set('X-Total-Pages', totalPages.toString());
+    res.set('X-Current-Page', pageNum.toString());
+
+    if (req.query.format === 'paginated') {
+      return res.json({
+        items,
+        total,
+        page: pageNum,
+        totalPages,
+        limit: limitNum,
+        hasMore: pageNum < totalPages
+      });
     }
 
     res.json(items);
@@ -124,8 +151,10 @@ const updateItem = async (req, res) => {
     if (lat !== undefined && lng !== undefined) {
       const latNum = parseFloat(lat);
       const lngNum = parseFloat(lng);
-      if (!isNaN(latNum) && !isNaN(lngNum)) {
+      if (!isNaN(latNum) && !isNaN(lngNum) && latNum >= -90 && latNum <= 90 && lngNum >= -180 && lngNum <= 180) {
         updateData.location = { lat: latNum, lng: lngNum };
+      } else if (lat !== undefined || lng !== undefined) {
+        return res.status(400).json({ msg: 'Coordenadas de geolocalización inválidas.' });
       }
     }
 
@@ -160,29 +189,32 @@ const updateItem = async (req, res) => {
 };
 
 // Obtener un ítem por ID
-const getItemById = async (req, res) => {
+const getItemById = async (req, res, next) => {
   try {
     const item = await Item.findById(req.params.id)
       .populate('ownerId', 'name email phone location');
     if (!item) return res.status(404).json({ msg: 'Ítem no encontrado.' });
     res.json(item);
   } catch (err) {
-    res.status(500).json({ msg: 'Error al obtener el ítem.' });
+    next(err);
   }
 };
 
-// Eliminar un ítem (dueño, admin o cuenta dev)
+// Eliminar un ítem (dueño, gestor, admin o cuenta dev)
 const deleteItem = async (req, res) => {
   try {
     const item = await Item.findById(req.params.id);
     if (!item) return res.status(404).json({ msg: 'Ítem no encontrado.' });
 
-    if (item.ownerId.toString() !== req.user.id && req.user.role !== 'admin' && req.user.role !== 'dev' && !req.user.isDev) {
+    const isOwner = item.ownerId.toString() === req.user.id;
+    const isAuthorizedStaff = ['admin', 'gestor', 'dev'].includes(req.user.role) || req.user.isDev;
+
+    if (!isOwner && !isAuthorizedStaff) {
       return res.status(403).json({ msg: 'No tienes permiso para eliminar este ítem.' });
     }
 
     await Item.findByIdAndDelete(req.params.id);
-    res.json({ msg: 'Publicación eliminada.' });
+    res.json({ msg: 'Publicación eliminada correctamente.' });
   } catch (err) {
     res.status(500).json({ msg: 'Error al eliminar el ítem.' });
   }
