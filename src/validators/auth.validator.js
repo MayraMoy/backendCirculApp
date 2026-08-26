@@ -27,8 +27,21 @@ const devSwitchRoleSchema = z.object({
   })
 });
 
+const forgotPasswordSchema = z.object({
+  email: z.string({ required_error: 'El correo electrónico es obligatorio.' })
+    .trim()
+    .email('Formato de correo electrónico inválido.')
+});
+
+const resetPasswordSchema = z.object({
+  password: z.string({ required_error: 'La contraseña es obligatoria.' })
+    .min(6, 'La nueva contraseña debe tener al menos 6 caracteres.')
+});
+
 module.exports = {
   registerSchema,
   loginSchema,
-  devSwitchRoleSchema
+  devSwitchRoleSchema,
+  forgotPasswordSchema,
+  resetPasswordSchema
 };
