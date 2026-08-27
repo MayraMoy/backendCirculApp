@@ -146,7 +146,7 @@ const updateItem = async (req, res) => {
     // Verificar permisos estrictos: solo el autor original o un administrador
     const currentUserId = req.user?.id || req.user?._id;
     const isOwner = item.ownerId && currentUserId && item.ownerId.toString() === currentUserId.toString();
-    const isAdmin = req.user?.role === 'admin' || req.user?.role === 'dev' || req.user?.isDev === true;
+    const isAdmin = req.user?.role === 'admin';
 
     if (!isOwner && !isAdmin) {
       return res.status(403).json({ msg: 'No tienes permiso para editar este material. Solo el autor o un administrador pueden modificarlo.' });
@@ -221,14 +221,15 @@ const getItemById = async (req, res, next) => {
   }
 };
 
-// Eliminar un ítem (dueño, gestor, admin o cuenta dev)
+// Eliminar un ítem (dueño, gestor o admin)
 const deleteItem = async (req, res) => {
   try {
     const item = await Item.findById(req.params.id);
     if (!item) return res.status(404).json({ msg: 'Ítem no encontrado.' });
 
-    const isOwner = item.ownerId.toString() === req.user.id;
-    const isAuthorizedStaff = ['admin', 'gestor', 'dev'].includes(req.user.role) || req.user.isDev;
+    const currentUserId = req.user?.id || req.user?._id;
+    const isOwner = item.ownerId && currentUserId && item.ownerId.toString() === currentUserId.toString();
+    const isAuthorizedStaff = ['admin', 'gestor'].includes(req.user?.role);
 
     if (!isOwner && !isAuthorizedStaff) {
       return res.status(403).json({ msg: 'No tienes permiso para eliminar este ítem.' });
