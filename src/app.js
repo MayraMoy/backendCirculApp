@@ -12,6 +12,7 @@ const userRoutes = require('./routes/user.routes');
 const locationRoutes = require('./routes/location.routes');
 const ratingRoutes = require('./routes/rating.routes');
 const adminRoutes = require('./routes/admin.routes');
+const reportRoutes = require('./routes/report.routes');
 // Middleware
 const auth = require('./middleware/auth');
 const { generalLimiter } = require('./middleware/rateLimiter');
@@ -38,6 +39,7 @@ app.use('/api/validation', auth, validationRoutes);
 app.use('/api/users', auth, userRoutes);
 app.use('/api/ratings', auth, ratingRoutes);
 app.use('/api/admin', auth, adminRoutes);
+app.use('/api/reports', reportRoutes);
 
 // Ruta raíz de healthcheck
 app.get('/', (req, res) => {

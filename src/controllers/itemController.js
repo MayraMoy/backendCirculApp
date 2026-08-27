@@ -143,9 +143,13 @@ const updateItem = async (req, res) => {
     const item = await Item.findById(id);
     if (!item) return res.status(404).json({ msg: 'Ítem no encontrado.' });
 
-    // Verificar permisos: dueño, admin o cuenta dev
-    if (item.ownerId.toString() !== req.user.id && req.user.role !== 'admin' && req.user.role !== 'dev' && !req.user.isDev) {
-      return res.status(403).json({ msg: 'No tienes permiso para editar este material.' });
+    // Verificar permisos estrictos: solo el autor original o un administrador
+    const currentUserId = req.user?.id || req.user?._id;
+    const isOwner = item.ownerId && currentUserId && item.ownerId.toString() === currentUserId.toString();
+    const isAdmin = req.user?.role === 'admin' || req.user?.role === 'dev' || req.user?.isDev === true;
+
+    if (!isOwner && !isAdmin) {
+      return res.status(403).json({ msg: 'No tienes permiso para editar este material. Solo el autor o un administrador pueden modificarlo.' });
     }
 
     const updateData = {};
