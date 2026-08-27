@@ -11,7 +11,7 @@ const registerSchema = z.object({
     .email('Formato de correo electrónico inválido.'),
   password: z.string({ required_error: 'La contraseña es obligatoria.' })
     .min(6, 'La contraseña debe tener al menos 6 caracteres.')
-});
+}).strict();
 
 const loginSchema = z.object({
   email: z.string({ required_error: 'El correo electrónico es obligatorio.' })

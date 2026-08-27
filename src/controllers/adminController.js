@@ -133,10 +133,91 @@ const updateAdminUser = async (req, res) => {
   }
 };
 
+// GET /api/admin/reports/:type
+const getAdminReport = async (req, res) => {
+  try {
+    const { type } = req.params;
+    const now = new Date();
+
+    let reportData = {
+      generatedAt: now.toISOString(),
+      reportType: type,
+      title: `Reporte de ${type.charAt(0).toUpperCase() + type.slice(1)}`
+    };
+
+    if (type === 'monthly') {
+      const totalUsers = await User.countDocuments();
+      const totalItems = await Item.countDocuments();
+      const validatedItems = await Item.countDocuments({ processingState: 'validado' });
+      const itemsByCategory = await Item.aggregate([
+        { $group: { _id: '$category', count: { $sum: 1 } } }
+      ]);
+
+      reportData = {
+        ...reportData,
+        title: 'Reporte Mensual de Actividad - Circulapp',
+        period: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`,
+        metrics: {
+          totalUsers,
+          totalItems,
+          validatedItems,
+          activityRate: totalItems > 0 ? ((validatedItems / totalItems) * 100).toFixed(1) + '%' : '0%'
+        },
+        itemsByCategory
+      };
+    } else if (type === 'environmental') {
+      const totalItems = await Item.countDocuments();
+      const validatedItems = await Item.countDocuments({ processingState: 'validado' });
+      const co2SavedKg = totalItems * 10; // Estimación base: 10 kg CO2 por ítem valorizado
+      const treesEquivalent = (co2SavedKg / 22).toFixed(1); // 1 árbol absorbe aprox 22kg CO2/año
+
+      const categoryImpact = await Item.aggregate([
+        { $group: { _id: '$category', total: { $sum: 1 } } }
+      ]);
+
+      reportData = {
+        ...reportData,
+        title: 'Reporte de Impacto Ambiental - Circulapp',
+        metrics: {
+          co2SavedKg,
+          treesEquivalent,
+          totalMaterialsRecycled: totalItems,
+          validatedMaterials: validatedItems,
+          cleanEnergyScore: 'A+'
+        },
+        categoryImpact
+      };
+    } else if (type === 'validations') {
+      const validatedItems = await Item.find({ processingState: 'validado' })
+        .populate('ownerId', 'name email location')
+        .populate('validatedBy', 'name email')
+        .select('title category address validationDate validationChecklist validationObservations ownerId validatedBy createdAt');
+
+      reportData = {
+        ...reportData,
+        title: 'Reporte de Validaciones y Certificaciones Comunales',
+        totalValidated: validatedItems.length,
+        items: validatedItems
+      };
+    } else {
+      return res.status(400).json({ msg: 'Tipo de reporte no reconocido. Opciones: monthly, environmental, validations.' });
+    }
+
+    const filename = `reporte_${type}_${now.toISOString().slice(0, 10)}.json`;
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.json(reportData);
+  } catch (err) {
+    console.error('Error al generar reporte administrativo:', err);
+    res.status(500).json({ msg: 'Error al generar el reporte administrativo.' });
+  }
+};
+
 module.exports = {
   getAdminMetrics,
   getAdminUsers,
   getAdminItems,
   promoteUser,
-  updateAdminUser
+  updateAdminUser,
+  getAdminReport
 };

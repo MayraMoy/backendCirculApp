@@ -5,7 +5,8 @@ const {
   getAdminUsers,
   getAdminItems,
   promoteUser,
-  updateAdminUser
+  updateAdminUser,
+  getAdminReport
 } = require('../controllers/adminController');
 const auth = require('../middleware/auth');
 const router = express.Router();
@@ -24,9 +25,7 @@ router.get('/items', auth, adminOnly, getAdminItems);
 router.post('/users/:id/promote', auth, adminOnly, promoteUser);
 router.put('/users/:id', auth, adminOnly, updateAdminUser);
 
-// Reportes (simulados como descarga)
-router.get('/reports/:type', auth, adminOnly, (req, res) => {
-  res.json({ msg: `Reporte ${req.params.type} generado.` });
-});
+// Reportes administrativos descargables
+router.get('/reports/:type', auth, adminOnly, getAdminReport);
 
 module.exports = router;

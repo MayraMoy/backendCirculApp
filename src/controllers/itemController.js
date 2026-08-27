@@ -24,7 +24,12 @@ const createItem = async (req, res) => {
       title,
       description,
       category,
-      location: { lat: latNum, lng: lngNum },
+      location: {
+        type: 'Point',
+        coordinates: [lngNum, latNum],
+        lat: latNum,
+        lng: lngNum
+      },
       address: address || '',
       ownerId: req.user.id,
       images: imageUrls,
@@ -39,7 +44,7 @@ const createItem = async (req, res) => {
   }
 };
 
-// Buscar ítems con filtros avanzados (RF04, RF13)
+// Buscar ítems con filtros avanzados (RF04, RF13) y búsqueda geoespacial nativa en MongoDB
 const searchItems = async (req, res) => {
   try {
     const { 
@@ -75,7 +80,23 @@ const searchItems = async (req, res) => {
     // Filtro por categoría
     if (category) filter.category = category;
 
-    // Paginación y ordenamiento
+    // Filtro geoespacial nativo de MongoDB (índice 2dsphere con $geoWithin $centerSphere)
+    if (lat && lng && radius) {
+      const latNum = parseFloat(lat);
+      const lngNum = parseFloat(lng);
+      const radiusKm = parseFloat(radius);
+
+      if (!isNaN(latNum) && !isNaN(lngNum) && !isNaN(radiusKm) && radiusKm > 0) {
+        const radiusInRadians = radiusKm / 6378.1; // Radio terrestre en kilómetros
+        filter['location.coordinates'] = {
+          $geoWithin: {
+            $centerSphere: [[lngNum, latNum], radiusInRadians]
+          }
+        };
+      }
+    }
+
+    // Paginación y ordenamiento eficientes en el motor de base de datos
     const pageNum = parseInt(req.query.page, 10) || 1;
     const limitNum = Math.min(parseInt(req.query.limit, 10) || 50, 100);
     const skip = (pageNum - 1) * limitNum;
@@ -83,29 +104,12 @@ const searchItems = async (req, res) => {
     const total = await Item.countDocuments(filter);
     const totalPages = Math.ceil(total / limitNum) || 1;
 
-    // Obtener ítems paginados
-    let items = await Item.find(filter)
+    // Obtener ítems paginados directamente de MongoDB
+    const items = await Item.find(filter)
       .populate('ownerId', 'name email phone location')
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limitNum);
-
-    // Filtrado por proximidad (opcional)
-    if (lat && lng && radius) {
-      const earthRadiusKm = 6371;
-      const maxDistance = parseFloat(radius);
-      const latNum = parseFloat(lat);
-      const lngNum = parseFloat(lng);
-
-      if (!isNaN(latNum) && !isNaN(lngNum) && !isNaN(maxDistance)) {
-        items = items.filter(item => {
-          const dx = (item.location.lat - latNum) * earthRadiusKm * Math.PI / 180;
-          const dy = (item.location.lng - lngNum) * earthRadiusKm * Math.PI / 180 * Math.cos(latNum * Math.PI / 180);
-          const distance = Math.sqrt(dx * dx + dy * dy);
-          return distance <= maxDistance;
-        });
-      }
-    }
 
     res.set('X-Total-Count', total.toString());
     res.set('X-Total-Pages', totalPages.toString());
@@ -152,8 +156,13 @@ const updateItem = async (req, res) => {
       const latNum = parseFloat(lat);
       const lngNum = parseFloat(lng);
       if (!isNaN(latNum) && !isNaN(lngNum) && latNum >= -90 && latNum <= 90 && lngNum >= -180 && lngNum <= 180) {
-        updateData.location = { lat: latNum, lng: lngNum };
-      } else if (lat !== undefined || lng !== undefined) {
+        updateData.location = {
+          type: 'Point',
+          coordinates: [lngNum, latNum],
+          lat: latNum,
+          lng: lngNum
+        };
+      } else {
         return res.status(400).json({ msg: 'Coordenadas de geolocalización inválidas.' });
       }
     }
