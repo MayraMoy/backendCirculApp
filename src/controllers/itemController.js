@@ -70,12 +70,15 @@ const searchItems = async (req, res) => {
       filter.processingState = processingState;
     }
 
-    // Búsqueda por texto
-    if (query) {
-      filter.$or = [
-        { title: { $regex: query, $options: 'i' } },
-        { description: { $regex: query, $options: 'i' } }
-      ];
+    // Búsqueda por texto (sanitizado contra ReDoS)
+    if (query && typeof query === 'string') {
+      const sanitizedQuery = query.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      if (sanitizedQuery.length > 0) {
+        filter.$or = [
+          { title: { $regex: sanitizedQuery, $options: 'i' } },
+          { description: { $regex: sanitizedQuery, $options: 'i' } }
+        ];
+      }
     }
 
     // Filtro por categoría

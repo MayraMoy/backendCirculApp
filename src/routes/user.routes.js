@@ -9,12 +9,7 @@ const router = express.Router();
  * @desc    Obtener perfil público de un usuario (con calificaciones promedio)
  * @access  Privado
  */
-router.get('/:id', auth, getUserProfile);
-router.put('/profile', auth, updateUserProfile);
-
-// Puedes agregar más rutas aquí en el futuro:
-// - Calificar a otro usuario (POST /api/users/:id/rate)
-// - Obtener historial de donaciones
-// - Editar perfil, etc.
+router.put('/profile', updateUserProfile);
+router.get('/:id', getUserProfile);
 
 module.exports = router;

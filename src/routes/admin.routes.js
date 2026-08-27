@@ -19,13 +19,13 @@ const adminOnly = (req, res, next) => {
   next();
 };
 
-router.get('/metrics', auth, adminOnly, getAdminMetrics);
-router.get('/users', auth, adminOnly, getAdminUsers);
-router.get('/items', auth, adminOnly, getAdminItems);
-router.post('/users/:id/promote', auth, adminOnly, promoteUser);
-router.put('/users/:id', auth, adminOnly, updateAdminUser);
+router.get('/metrics', adminOnly, getAdminMetrics);
+router.get('/users', adminOnly, getAdminUsers);
+router.get('/items', adminOnly, getAdminItems);
+router.post('/users/:id/promote', adminOnly, promoteUser);
+router.put('/users/:id', adminOnly, updateAdminUser);
 
 // Reportes administrativos descargables
-router.get('/reports/:type', auth, adminOnly, getAdminReport);
+router.get('/reports/:type', adminOnly, getAdminReport);
 
 module.exports = router;

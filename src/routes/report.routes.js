@@ -12,15 +12,15 @@ const {
 } = require('../controllers/reportModerationController');
 
 // Crear denuncia (Cualquier usuario autenticado)
-router.post('/', auth, validate(createReportSchema), createReport);
+router.post('/', validate(createReportSchema), createReport);
 
 // Listar denuncias (Admin y Gestores)
-router.get('/', auth, getReports);
+router.get('/', getReports);
 
 // Desestimar denuncia (Admin y Gestores)
-router.patch('/:id/dismiss', auth, dismissReport);
+router.patch('/:id/dismiss', dismissReport);
 
 // Eliminar publicación denunciada (Admin y Gestores)
-router.delete('/:id/item', auth, deleteReportedItem);
+router.delete('/:id/item', deleteReportedItem);
 
 module.exports = router;
