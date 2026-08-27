@@ -1,6 +1,7 @@
 // backend/src/controllers/itemController.js
 const Item = require('../models/Item');
 const User = require('../models/User');
+const { deleteFromCloudinary } = require('../utils/cloudinary');
 
 // Crear un nuevo ítem (RF03)
 const createItem = async (req, res) => {
@@ -169,9 +170,11 @@ const updateItem = async (req, res) => {
 
     // Manejo inteligente de imágenes conservadas vs eliminadas
     let finalImages = [];
+    let imagesToDelete = [];
     if (keepImages !== undefined) {
-      const keepArr = Array.isArray(keepImages) ? keepImages : [keepImages];
-      finalImages = item.images.filter(img => keepArr.includes(img));
+      const keepArr = Array.isArray(keepImages) ? keepImages.filter(Boolean) : (keepImages ? [keepImages] : []);
+      finalImages = (item.images || []).filter(img => keepArr.includes(img));
+      imagesToDelete = (item.images || []).filter(img => !keepArr.includes(img));
     } else {
       finalImages = item.images || [];
     }
@@ -183,6 +186,11 @@ const updateItem = async (req, res) => {
     }
 
     updateData.images = finalImages;
+
+    // Eliminar de Cloudinary las fotos descartadas al actualizar
+    if (imagesToDelete.length > 0) {
+      deleteFromCloudinary(imagesToDelete).catch(err => console.warn('Error borrando fotos en Cloudinary:', err.message));
+    }
 
     const updatedItem = await Item.findByIdAndUpdate(
       id,
@@ -220,6 +228,11 @@ const deleteItem = async (req, res) => {
 
     if (!isOwner && !isAuthorizedStaff) {
       return res.status(403).json({ msg: 'No tienes permiso para eliminar este ítem.' });
+    }
+
+    // Eliminar de Cloudinary todas las imágenes asociadas al ítem
+    if (item.images && item.images.length > 0) {
+      deleteFromCloudinary(item.images).catch(err => console.warn('Error borrando fotos en Cloudinary:', err.message));
     }
 
     await Item.findByIdAndDelete(req.params.id);
