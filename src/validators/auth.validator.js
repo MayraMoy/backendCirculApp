@@ -10,8 +10,9 @@ const registerSchema = z.object({
     .trim()
     .email('Formato de correo electrónico inválido.'),
   password: z.string({ required_error: 'La contraseña es obligatoria.' })
-    .min(6, 'La contraseña debe tener al menos 6 caracteres.')
-}).strict();
+    .min(6, 'La contraseña debe tener al menos 6 caracteres.'),
+  role: z.enum(['user', 'gestor', 'admin']).optional()
+}).strip();
 
 const loginSchema = z.object({
   email: z.string({ required_error: 'El correo electrónico es obligatorio.' })
