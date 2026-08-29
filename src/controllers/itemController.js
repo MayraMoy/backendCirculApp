@@ -100,6 +100,18 @@ const searchItems = async (req, res) => {
       }
     }
 
+    // P-030: Excluir publicaciones de usuarios cuya cuenta esté suspendida o desactivada
+    const inactiveUsers = await User.find({ active: false }).distinct('_id');
+    if (inactiveUsers.length > 0) {
+      if (filter.ownerId) {
+        if (inactiveUsers.some(uid => uid.toString() === filter.ownerId.toString())) {
+          return res.json(req.query.format === 'paginated' ? { items: [], total: 0, page: 1, totalPages: 0, limit: 50, hasMore: false } : []);
+        }
+      } else {
+        filter.ownerId = { $nin: inactiveUsers };
+      }
+    }
+
     // Paginación y ordenamiento eficientes en el motor de base de datos
     const pageNum = parseInt(req.query.page, 10) || 1;
     const limitNum = Math.min(parseInt(req.query.limit, 10) || 50, 100);
@@ -110,7 +122,7 @@ const searchItems = async (req, res) => {
 
     // Obtener ítems paginados directamente de MongoDB
     const items = await Item.find(filter)
-      .populate('ownerId', 'name email phone location')
+      .populate('ownerId', 'name email phone location active')
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limitNum);
@@ -203,7 +215,7 @@ const updateItem = async (req, res) => {
       id,
       { $set: updateData },
       { new: true }
-    ).populate('ownerId', 'name email phone location');
+    ).populate('ownerId', 'name email phone location active');
 
     res.json(updatedItem);
   } catch (err) {
@@ -216,8 +228,19 @@ const updateItem = async (req, res) => {
 const getItemById = async (req, res, next) => {
   try {
     const item = await Item.findById(req.params.id)
-      .populate('ownerId', 'name email phone location');
+      .populate('ownerId', 'name email phone location active');
     if (!item) return res.status(404).json({ msg: 'Ítem no encontrado.' });
+
+    // P-030: Si la cuenta del propietario fue suspendida y el solicitante no es staff
+    if (item.ownerId && item.ownerId.active === false) {
+      const isStaff = req.user && (['admin', 'gestor', 'dev'].includes(req.user.role) || req.user.isDev);
+      if (!isStaff) {
+        return res.status(404).json({
+          msg: 'Esta publicación no está disponible porque la cuenta del ofertante ha sido suspendida.'
+        });
+      }
+    }
+
     res.json(item);
   } catch (err) {
     next(err);
