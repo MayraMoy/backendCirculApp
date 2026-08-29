@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 const Rating = require('../models/Rating');
 const Item = require('../models/Item');
+const notificationService = require('../services/notificationService');
 
 // Crear una nueva calificación
 const createRating = async (req, res) => {
@@ -27,6 +28,16 @@ const createRating = async (req, res) => {
     });
 
     await newRating.save();
+
+    // Notificar al usuario que recibió la calificación
+    notificationService.notifyRatingReceived({
+      ratedUserId: item.ownerId._id,
+      raterId: req.user.id,
+      raterName: req.user.name || 'Un miembro de la comunidad',
+      materialQuality,
+      comment
+    }).catch(err => console.error('Error al emitir notificación de calificación:', err));
+
     res.status(201).json({ msg: 'Calificación enviada exitosamente.', rating: newRating });
   } catch (err) {
     if (err.code === 11000) {

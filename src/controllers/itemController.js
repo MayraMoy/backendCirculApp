@@ -2,6 +2,7 @@
 const Item = require('../models/Item');
 const User = require('../models/User');
 const { deleteFromCloudinary } = require('../utils/cloudinary');
+const notificationService = require('../services/notificationService');
 
 // Crear un nuevo ítem (RF03)
 const createItem = async (req, res) => {
@@ -15,29 +16,31 @@ const createItem = async (req, res) => {
       return res.status(400).json({ msg: 'Coordenadas de geolocalización inválidas (Latitud [-90, 90], Longitud [-180, 180]).' });
     }
 
-    // Subir imágenes (si usas CloudinaryStorage, req.files ya tiene URLs)
-    let imageUrls = [];
-    if (req.files && req.files.length > 0) {
-      imageUrls = req.files.map(file => file.path || file.url);
-    }
+    // Procesar imágenes subidas con Multer y Cloudinary
+    const imageUrls = req.files ? req.files.map(f => f.path) : [];
 
     const newItem = new Item({
       title,
       description,
       category,
+      address: address ? address.trim() : '',
       location: {
         type: 'Point',
-        coordinates: [lngNum, latNum],
-        lat: latNum,
-        lng: lngNum
+        coordinates: [lngNum, latNum]
       },
-      address: address || '',
       ownerId: req.user.id,
       images: imageUrls,
       processingState: 'sin_procesar' // Estado inicial
     });
 
     await newItem.save();
+
+    // Disparar alertas de proximidad a usuarios y gestores de forma asíncrona
+    notificationService.notifyNearbyUsersOnPublish({
+      item: newItem,
+      authorId: req.user.id
+    }).catch(err => console.error('Error al emitir alertas de proximidad:', err));
+
     res.status(201).json(newItem);
   } catch (err) {
     console.error('Error en createItem:', err);
@@ -301,6 +304,12 @@ const markAsBaled = async (req, res) => {
     // Actualizar estado
     item.processingState = 'fardado';
     await item.save();
+
+    // Notificar al dueño de la publicación
+    notificationService.notifyItemBaled({
+      item,
+      gestorId: req.user.id
+    }).catch(err => console.error('Error al emitir notificación de fardado:', err));
 
     res.json({ 
       msg: 'Material marcado como fardado exitosamente.', 
