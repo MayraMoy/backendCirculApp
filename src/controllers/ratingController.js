@@ -11,16 +11,19 @@ const createRating = async (req, res) => {
     // Validar que el ítem exista
     const item = await Item.findById(itemId).populate('ownerId');
     if (!item) return res.status(404).json({ msg: 'Ítem no encontrado.' });
+    if (!item.ownerId) return res.status(400).json({ msg: 'El autor del material ya no está disponible.' });
+
+    const ownerIdStr = item.ownerId._id ? item.ownerId._id.toString() : item.ownerId.toString();
 
     // No permitir auto-calificación
-    if (item.ownerId._id.toString() === req.user.id) {
+    if (ownerIdStr === req.user.id) {
       return res.status(400).json({ msg: 'No puedes calificarte a ti mismo.' });
     }
 
     const newRating = new Rating({
       itemId,
       raterId: req.user.id,
-      ratedId: item.ownerId._id,
+      ratedId: item.ownerId._id || item.ownerId,
       materialQuality,
       punctuality,
       standardCompliance,
