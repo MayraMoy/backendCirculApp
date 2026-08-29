@@ -65,9 +65,14 @@ const searchItems = async (req, res) => {
       filter.ownerId = ownerId;
     }
 
-    // Filtro por estado de procesamiento (RF15)
+    // Filtro por estado de procesamiento (RF15, P-036)
     if (processingState) {
-      filter.processingState = processingState;
+      if (typeof processingState === 'string' && processingState.includes(',')) {
+        const states = processingState.split(',').map(s => s.trim()).filter(Boolean);
+        filter.processingState = { $in: states };
+      } else {
+        filter.processingState = processingState;
+      }
     }
 
     // Búsqueda por texto (sanitizado contra ReDoS)

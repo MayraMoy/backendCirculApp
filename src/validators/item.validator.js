@@ -35,7 +35,13 @@ const updateItemSchema = z.object({
 const searchItemsQuerySchema = z.object({
   query: z.string().trim().optional(),
   category: z.enum(validCategories).optional(),
-  processingState: z.enum(validStates).optional(),
+  processingState: z.string().trim().refine(
+    (val) => {
+      const parts = val.split(',').map(s => s.trim());
+      return parts.every(part => validStates.includes(part));
+    },
+    { message: `Estado(s) de procesamiento inválido(s). Opciones válidas: ${validStates.join(', ')}.` }
+  ).optional(),
   ownerId: z.string().trim().optional(),
   lat: z.coerce.number().min(-90).max(90).optional(),
   lng: z.coerce.number().min(-180).max(180).optional(),
