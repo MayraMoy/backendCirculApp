@@ -2,10 +2,24 @@
 const mongoose = require('mongoose');
 
 const reportSchema = new mongoose.Schema({
+  targetType: {
+    type: String,
+    enum: ['item', 'user'],
+    default: 'item'
+  },
   item: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Item',
-    required: [true, 'El material a denunciar es obligatorio']
+    required: function() {
+      return this.targetType === 'item';
+    }
+  },
+  reportedUser: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: function() {
+      return this.targetType === 'user';
+    }
   },
   reporter: {
     type: mongoose.Schema.Types.ObjectId,
@@ -16,12 +30,20 @@ const reportSchema = new mongoose.Schema({
     type: String,
     enum: {
       values: [
+        // Motivos para publicaciones
         'contenido_inapropiado',
         'categoria_incorrecta',
         'informacion_falsa',
         'material_no_reciclable',
         'spam_o_duplicado',
         'contacto_invalido',
+        // Motivos para usuarios
+        'usuario_sospechoso',
+        'comportamiento_abusivo',
+        'estafa_o_fraude',
+        'suplantacion_identidad',
+        'contacto_falso_o_invalido',
+        // Común
         'otro'
       ],
       message: 'Motivo de denuncia no válido'
@@ -36,7 +58,7 @@ const reportSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['pendiente', 'en_revision', 'desestimada', 'publicacion_eliminada'],
+    enum: ['pendiente', 'en_revision', 'desestimada', 'publicacion_eliminada', 'usuario_suspendido'],
     default: 'pendiente'
   },
   resolvedBy: {
@@ -55,8 +77,9 @@ const reportSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Índice compuesto para consultas rápidas por ítem, denunciante y estado
-reportSchema.index({ item: 1, reporter: 1, status: 1 });
+// Índices compuestos para consultas rápidas
+reportSchema.index({ targetType: 1, item: 1, reporter: 1, status: 1 });
+reportSchema.index({ targetType: 1, reportedUser: 1, reporter: 1, status: 1 });
 reportSchema.index({ status: 1, createdAt: -1 });
 
 module.exports = mongoose.model('Report', reportSchema);

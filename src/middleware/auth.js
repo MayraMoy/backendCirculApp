@@ -7,7 +7,10 @@ const auth = async (req, res, next) => {
     ? req.header('Authorization') 
     : (req.headers && req.headers.authorization);
 
-  const token = authHeader ? authHeader.replace(/^Bearer\s+/i, '') : null;
+  const token = authHeader 
+    ? authHeader.replace(/^Bearer\s+/i, '') 
+    : (req.query && req.query.token ? req.query.token : null);
+
   if (!token) {
     return res.status(401).json({ msg: 'Acceso denegado. Token no proporcionado.' });
   }
