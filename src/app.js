@@ -21,7 +21,19 @@ const errorHandler = require('./middleware/errorHandler');
 
 const app = express();
 
-app.use(helmet());
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://cdn.jsdelivr.net"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com", "https://cdn.jsdelivr.net", "data:"],
+      imgSrc: ["'self'", "data:", "blob:", "https://res.cloudinary.com", "https://*.tile.openstreetmap.org", "https://maps.googleapis.com", "https://maps.gstatic.com"],
+      connectSrc: ["'self'", "https://nominatim.openstreetmap.org", "https://maps.googleapis.com", "https://res.cloudinary.com"]
+    }
+  },
+  crossOriginEmbedderPolicy: false
+}));
 const allowedOrigin = process.env.FRONTEND_URL || 'http://localhost:5173';
 app.use(cors({
   origin: (origin, callback) => {

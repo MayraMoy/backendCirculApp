@@ -1,14 +1,21 @@
 // backend/src/middleware/rateLimiter.js
 const rateLimit = require('express-rate-limit');
 
-// Límite para autenticación (Login y Registro) -> 10 intentos cada 15 min
+// Límite para autenticación (Login y Registro) -> 10 intentos cada 15 min con clave compuesta IP + Email
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutos
-  max: 10, // Máximo 10 intentos por IP
+  max: 10, // Máximo 10 intentos por clave
   standardHeaders: true, // Devuelve info en headers RateLimit-*
   legacyHeaders: false, // Deshabilita headers X-RateLimit-*
+  validate: { keyGeneratorIpFallback: false },
+  keyGenerator: (req) => {
+    const email = req.body?.email && typeof req.body.email === 'string'
+      ? req.body.email.toLowerCase().trim()
+      : '';
+    return email ? `${req.ip}_${email}` : req.ip;
+  },
   message: {
-    msg: 'Demasiados intentos desde esta dirección IP. Por favor espera 15 minutos antes de volver a intentar.'
+    msg: 'Demasiados intentos de autenticación. Por favor espera 15 minutos antes de volver a intentar.'
   }
 });
 

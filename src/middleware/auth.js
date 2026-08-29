@@ -19,13 +19,21 @@ const auth = async (req, res, next) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     
     // P-005: Verificar en base de datos si el usuario fue desactivado o eliminado
-    const user = await User.findById(decoded.id).select('_id name email role active isDev');
+    const user = await User.findById(decoded.id).select('_id name email role active isDev passwordChangedAt');
     if (!user) {
       return res.status(401).json({ msg: 'Usuario no encontrado o sesión inválida.' });
     }
 
     if (user.active === false) {
       return res.status(403).json({ msg: 'Tu cuenta ha sido desactivada. Comunícate con el administrador.' });
+    }
+
+    // 🔒 Revocación automática: Si la contraseña se modificó después de emitir el token
+    if (user.passwordChangedAt && decoded.iat) {
+      const changedTimestamp = parseInt(user.passwordChangedAt.getTime() / 1000, 10);
+      if (decoded.iat < changedTimestamp) {
+        return res.status(401).json({ msg: 'Sesión expirada tras cambio de contraseña. Por favor inicia sesión nuevamente.' });
+      }
     }
 
     req.user = {
@@ -52,8 +60,12 @@ const optionalAuth = async (req, res, next) => {
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const user = await User.findById(decoded.id).select('_id name email role active isDev');
+    const user = await User.findById(decoded.id).select('_id name email role active isDev passwordChangedAt');
     if (user && user.active !== false) {
+      if (user.passwordChangedAt && decoded.iat) {
+        const changedTimestamp = parseInt(user.passwordChangedAt.getTime() / 1000, 10);
+        if (decoded.iat < changedTimestamp) return next();
+      }
       req.user = {
         id: user._id.toString(),
         role: user.role,
