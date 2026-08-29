@@ -38,4 +38,7 @@ userSchema.pre('save', async function (next) {
   next();
 });
 
+userSchema.index({ active: 1 });
+userSchema.index({ resetPasswordToken: 1 });
+
 module.exports = mongoose.model('User', userSchema);

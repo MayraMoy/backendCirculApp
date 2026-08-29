@@ -12,20 +12,32 @@ cloudinary.config({
  * Extrae el public_id de Cloudinary a partir de una URL segura
  * Ejemplos soportados:
  * - https://res.cloudinary.com/dpcjrnmly/image/upload/v1740000000/circulapp_uploads/n9j0k234_abc.png -> circulapp_uploads/n9j0k234_abc
- * - https://res.cloudinary.com/demo/image/upload/circulapp_uploads/sample.jpg -> circulapp_uploads/sample
+ * - https://res.cloudinary.com/demo/image/upload/c_fill,w_300/v1234/circulapp_uploads/sample.jpg -> circulapp_uploads/sample
+ * - circulapp_uploads/sample -> circulapp_uploads/sample
  */
 const extractPublicId = (imageUrl) => {
   if (!imageUrl || typeof imageUrl !== 'string') return null;
 
   // Si ya es un publicId directo (no URL)
   if (!imageUrl.startsWith('http://') && !imageUrl.startsWith('https://')) {
-    return imageUrl.split('.')[0];
+    const lastDot = imageUrl.lastIndexOf('.');
+    return lastDot !== -1 ? imageUrl.substring(0, lastDot) : imageUrl;
   }
 
-  // Coincidir después de /upload/ (y opcional v[0-9]+/) hasta la extensión del archivo
-  const regex = /\/upload\/(?:v\d+\/)?([^\.]+)/;
-  const match = imageUrl.match(regex);
-  return match ? match[1] : null;
+  const parts = imageUrl.split('/');
+  const uploadIndex = parts.indexOf('upload');
+  if (uploadIndex === -1) return null;
+
+  // Filtrar segmentos de transformaciones (ej: c_fill,w_300) y versiones (v123456)
+  const relevantParts = parts
+    .slice(uploadIndex + 1)
+    .filter(segment => !segment.match(/^v\d+$/) && !segment.includes(','));
+
+  if (relevantParts.length === 0) return null;
+
+  const fullPathWithExt = relevantParts.join('/');
+  const lastDot = fullPathWithExt.lastIndexOf('.');
+  return lastDot !== -1 ? fullPathWithExt.substring(0, lastDot) : fullPathWithExt;
 };
 
 /**

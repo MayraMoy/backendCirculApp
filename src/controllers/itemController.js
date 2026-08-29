@@ -86,8 +86,8 @@ const searchItems = async (req, res) => {
       }
     }
 
-    // Filtro por categoría
-    if (category) filter.category = category;
+    // Filtro por categoría (sanitizado como string)
+    if (category && typeof category === 'string') filter.category = category;
 
     // Filtro geoespacial nativo de MongoDB (índice 2dsphere con $geoWithin $centerSphere)
     if (lat && lng && radius) {
@@ -97,7 +97,7 @@ const searchItems = async (req, res) => {
 
       if (!isNaN(latNum) && !isNaN(lngNum) && !isNaN(radiusKm) && radiusKm > 0) {
         const radiusInRadians = radiusKm / 6378.1; // Radio terrestre en kilómetros
-        filter['location.coordinates'] = {
+        filter.location = {
           $geoWithin: {
             $centerSphere: [[lngNum, latNum], radiusInRadians]
           }
@@ -105,15 +105,11 @@ const searchItems = async (req, res) => {
       }
     }
 
-    // P-030: Excluir publicaciones de usuarios cuya cuenta esté suspendida o desactivada
-    const inactiveUsers = await User.find({ active: false }).distinct('_id');
-    if (inactiveUsers.length > 0) {
-      if (filter.ownerId) {
-        if (inactiveUsers.some(uid => uid.toString() === filter.ownerId.toString())) {
-          return res.json(req.query.format === 'paginated' ? { items: [], total: 0, page: 1, totalPages: 0, limit: 50, hasMore: false } : []);
-        }
-      } else {
-        filter.ownerId = { $nin: inactiveUsers };
+    // P-030: Si se busca por un ownerId específico, validar que no esté inactivo
+    if (filter.ownerId) {
+      const targetUser = await User.findById(filter.ownerId).select('active');
+      if (targetUser && targetUser.active === false) {
+        return res.json(req.query.format === 'paginated' ? { items: [], total: 0, page: 1, totalPages: 0, limit: 50, hasMore: false } : []);
       }
     }
 
@@ -122,15 +118,19 @@ const searchItems = async (req, res) => {
     const limitNum = Math.min(parseInt(req.query.limit, 10) || 50, 100);
     const skip = (pageNum - 1) * limitNum;
 
-    const total = await Item.countDocuments(filter);
-    const totalPages = Math.ceil(total / limitNum) || 1;
-
     // Obtener ítems paginados directamente de MongoDB
-    const items = await Item.find(filter)
-      .populate('ownerId', 'name email phone location active')
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limitNum);
+    const [total, rawItems] = await Promise.all([
+      Item.countDocuments(filter),
+      Item.find(filter)
+        .populate('ownerId', 'name email phone location active')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limitNum)
+    ]);
+
+    // Filtrar publicaciones cuyos dueños fueron desactivados
+    const items = rawItems.filter(item => item.ownerId && item.ownerId.active !== false);
+    const totalPages = Math.ceil(total / limitNum) || 1;
 
     res.set('X-Total-Count', total.toString());
     res.set('X-Total-Pages', totalPages.toString());

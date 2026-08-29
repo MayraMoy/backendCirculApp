@@ -25,13 +25,19 @@ const getUserProfile = async (req, res) => {
       }
     ]);
 
-    // Incluir todos los campos del usuario en la respuesta
+    // Permitir ver email/teléfono si es el propio usuario o staff administrativo
+    const isSelfOrStaff = req.user && (
+      req.user.id === user._id.toString() ||
+      ['admin', 'gestor', 'dev'].includes(req.user.role) ||
+      req.user.isDev
+    );
+
     res.json({
       id: user._id,
       name: user.name,
-      email: user.email,
+      email: isSelfOrStaff ? user.email : undefined,
+      phone: isSelfOrStaff ? (user.phone || '') : undefined,
       role: user.role,
-      phone: user.phone || '',
       location: user.location || '',
       bio: user.bio || '',
       ratings: {
@@ -50,25 +56,32 @@ const updateUserProfile = async (req, res) => {
   try {
     const { name, email, phone, location, bio } = req.body;
     const userId = req.user.id;
+    const updateData = {};
+
+    if (name !== undefined) updateData.name = name.trim();
+    if (phone !== undefined) updateData.phone = phone.trim();
+    if (location !== undefined) updateData.location = location.trim();
+    if (bio !== undefined) updateData.bio = bio.trim();
 
     // Solo validar email si se está actualizando y es diferente al actual
     if (email) {
+      const sanitizedEmail = email.toLowerCase().trim();
       const currentUser = await User.findById(userId);
-      if (email !== currentUser.email) {
-        const existingUser = await User.findOne({ email });
+      if (sanitizedEmail !== currentUser.email) {
+        const existingUser = await User.findOne({ email: sanitizedEmail });
         if (existingUser) {
-          return res.status(400).json({ msg: 'El email ya está en uso.' });
+          return res.status(400).json({ msg: 'El correo electrónico ya está en uso.' });
         }
       }
+      updateData.email = sanitizedEmail;
     }
 
     const updatedUser = await User.findByIdAndUpdate(
       userId,
-      { name, email, phone, location, bio },
+      { $set: updateData },
       { new: true, runValidators: true, select: '-password' }
     );
 
-    // ✅ Incluir TODOS los campos en la respuesta de actualización
     res.json({
       id: updatedUser._id,
       name: updatedUser.name,

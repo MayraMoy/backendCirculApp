@@ -9,7 +9,7 @@ const auth = async (req, res, next) => {
 
   const token = authHeader 
     ? authHeader.replace(/^Bearer\s+/i, '') 
-    : (req.query && req.query.token ? req.query.token : null);
+    : null;
 
   if (!token) {
     return res.status(401).json({ msg: 'Acceso denegado. Token no proporcionado.' });
@@ -42,4 +42,32 @@ const auth = async (req, res, next) => {
   }
 };
 
+const optionalAuth = async (req, res, next) => {
+  const authHeader = typeof req.header === 'function' 
+    ? req.header('Authorization') 
+    : (req.headers && req.headers.authorization);
+
+  const token = authHeader ? authHeader.replace(/^Bearer\s+/i, '') : null;
+  if (!token) return next();
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const user = await User.findById(decoded.id).select('_id name email role active isDev');
+    if (user && user.active !== false) {
+      req.user = {
+        id: user._id.toString(),
+        role: user.role,
+        active: user.active,
+        isDev: user.isDev || false,
+        name: user.name,
+        email: user.email
+      };
+    }
+  } catch (err) {
+    // Si el token es inválido en modo opcional, se continúa como invitado
+  }
+  next();
+};
+
 module.exports = auth;
+module.exports.optionalAuth = optionalAuth;

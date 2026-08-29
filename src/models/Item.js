@@ -53,8 +53,11 @@ itemSchema.pre('validate', function (next) {
   next();
 });
 
-// Índice geoespacial 2dsphere nativo para búsquedas por radio ultra-eficientes
+// Índices geoespaciales y compuestos para búsquedas ultra-eficientes
 itemSchema.index({ location: '2dsphere' });
-itemSchema.index({ 'location.coordinates': '2dsphere' });
+itemSchema.index({ ownerId: 1, createdAt: -1 });
+itemSchema.index({ processingState: 1, createdAt: -1 });
+itemSchema.index({ category: 1, createdAt: -1 });
+itemSchema.index({ createdAt: -1 });
 
 module.exports = mongoose.model('Item', itemSchema);
