@@ -31,8 +31,10 @@ const register = async (req, res, next) => {
 
     await user.save();
 
-    // Despachar email de bienvenida garantizando el envío
-    await sendWelcomeEmail(user).catch(err => console.error('Error enviando email de bienvenida:', err));
+    // Despachar email de bienvenida en segundo plano de forma no bloqueante
+    setImmediate(() => {
+      sendWelcomeEmail(user).catch(err => console.error('Error enviando email de bienvenida:', err.message));
+    });
 
     const token = jwt.sign(
       {

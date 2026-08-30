@@ -13,20 +13,28 @@ const getTransporter = async () => {
     const isGmail = (process.env.EMAIL_SERVICE || '').toLowerCase() === 'gmail' || (process.env.EMAIL_HOST || '').includes('gmail');
     const options = isGmail
       ? {
-          service: 'gmail',
+          host: 'smtp.gmail.com',
+          port: 465,
+          secure: true, // SSL directo
           auth: {
             user: process.env.EMAIL_USER.trim(),
             pass: process.env.EMAIL_PASS.replace(/\s+/g, '')
-          }
+          },
+          connectionTimeout: 5000,
+          greetingTimeout: 5000,
+          socketTimeout: 7000
         }
       : {
           host: process.env.EMAIL_HOST || 'smtp.gmail.com',
-          port: parseInt(process.env.EMAIL_PORT, 10) || 587,
-          secure: process.env.EMAIL_PORT === '465',
+          port: parseInt(process.env.EMAIL_PORT, 10) || 465,
+          secure: process.env.EMAIL_PORT === '465' || !process.env.EMAIL_PORT,
           auth: {
             user: process.env.EMAIL_USER.trim(),
             pass: process.env.EMAIL_PASS.trim()
-          }
+          },
+          connectionTimeout: 5000,
+          greetingTimeout: 5000,
+          socketTimeout: 7000
         };
 
     transporterInstance = nodemailer.createTransport(options);
