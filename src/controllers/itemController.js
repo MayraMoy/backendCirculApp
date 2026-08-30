@@ -1,6 +1,8 @@
 // backend/src/controllers/itemController.js
 const Item = require('../models/Item');
 const User = require('../models/User');
+const { deleteFromCloudinary } = require('../utils/cloudinary');
+const notificationService = require('../services/notificationService');
 
 // Crear un nuevo ítem (RF03)
 const createItem = async (req, res) => {
@@ -14,24 +16,31 @@ const createItem = async (req, res) => {
       return res.status(400).json({ msg: 'Coordenadas de geolocalización inválidas (Latitud [-90, 90], Longitud [-180, 180]).' });
     }
 
-    // Subir imágenes (si usas CloudinaryStorage, req.files ya tiene URLs)
-    let imageUrls = [];
-    if (req.files && req.files.length > 0) {
-      imageUrls = req.files.map(file => file.path || file.url);
-    }
+    // Procesar imágenes subidas con Multer y Cloudinary
+    const imageUrls = req.files ? req.files.map(f => f.path) : [];
 
     const newItem = new Item({
       title,
       description,
       category,
-      location: { lat: latNum, lng: lngNum },
-      address: address || '',
+      address: address ? address.trim() : '',
+      location: {
+        type: 'Point',
+        coordinates: [lngNum, latNum]
+      },
       ownerId: req.user.id,
       images: imageUrls,
       processingState: 'sin_procesar' // Estado inicial
     });
 
     await newItem.save();
+
+    // Disparar alertas de proximidad a usuarios y gestores de forma asíncrona
+    notificationService.notifyNearbyUsersOnPublish({
+      item: newItem,
+      authorId: req.user.id
+    }).catch(err => console.error('Error al emitir alertas de proximidad:', err));
+
     res.status(201).json(newItem);
   } catch (err) {
     console.error('Error en createItem:', err);
@@ -39,7 +48,7 @@ const createItem = async (req, res) => {
   }
 };
 
-// Buscar ítems con filtros avanzados (RF04, RF13)
+// Buscar ítems con filtros avanzados (RF04, RF13) y búsqueda geoespacial nativa en MongoDB
 const searchItems = async (req, res) => {
   try {
     const { 
@@ -59,53 +68,72 @@ const searchItems = async (req, res) => {
       filter.ownerId = ownerId;
     }
 
-    // Filtro por estado de procesamiento (RF15)
+    // Filtro por estado de procesamiento (RF15, P-036)
     if (processingState) {
-      filter.processingState = processingState;
+      if (typeof processingState === 'string' && processingState.includes(',')) {
+        const states = processingState.split(',').map(s => s.trim()).filter(Boolean);
+        filter.processingState = { $in: states };
+      } else {
+        filter.processingState = processingState;
+      }
     }
 
-    // Búsqueda por texto
-    if (query) {
-      filter.$or = [
-        { title: { $regex: query, $options: 'i' } },
-        { description: { $regex: query, $options: 'i' } }
-      ];
+    // Búsqueda por texto (sanitizado contra ReDoS)
+    if (query && typeof query === 'string') {
+      const sanitizedQuery = query.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      if (sanitizedQuery.length > 0) {
+        filter.$or = [
+          { title: { $regex: sanitizedQuery, $options: 'i' } },
+          { description: { $regex: sanitizedQuery, $options: 'i' } }
+        ];
+      }
     }
 
-    // Filtro por categoría
-    if (category) filter.category = category;
+    // Filtro por categoría (sanitizado como string)
+    if (category && typeof category === 'string') filter.category = category;
 
-    // Paginación y ordenamiento
+    // Filtro geoespacial nativo de MongoDB (índice 2dsphere con $geoWithin $centerSphere)
+    if (lat && lng && radius) {
+      const latNum = parseFloat(lat);
+      const lngNum = parseFloat(lng);
+      const radiusKm = parseFloat(radius);
+
+      if (!isNaN(latNum) && !isNaN(lngNum) && !isNaN(radiusKm) && radiusKm > 0) {
+        const radiusInRadians = radiusKm / 6378.1; // Radio terrestre en kilómetros
+        filter.location = {
+          $geoWithin: {
+            $centerSphere: [[lngNum, latNum], radiusInRadians]
+          }
+        };
+      }
+    }
+
+    // P-030: Si se busca por un ownerId específico, validar que no esté inactivo
+    if (filter.ownerId) {
+      const targetUser = await User.findById(filter.ownerId).select('active');
+      if (targetUser && targetUser.active === false) {
+        return res.json(req.query.format === 'paginated' ? { items: [], total: 0, page: 1, totalPages: 0, limit: 50, hasMore: false } : []);
+      }
+    }
+
+    // Paginación y ordenamiento eficientes en el motor de base de datos
     const pageNum = parseInt(req.query.page, 10) || 1;
     const limitNum = Math.min(parseInt(req.query.limit, 10) || 50, 100);
     const skip = (pageNum - 1) * limitNum;
 
-    const total = await Item.countDocuments(filter);
+    // Obtener ítems paginados directamente de MongoDB
+    const [total, rawItems] = await Promise.all([
+      Item.countDocuments(filter),
+      Item.find(filter)
+        .populate('ownerId', 'name email phone location active')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limitNum)
+    ]);
+
+    // Filtrar publicaciones cuyos dueños fueron desactivados
+    const items = rawItems.filter(item => item.ownerId && item.ownerId.active !== false);
     const totalPages = Math.ceil(total / limitNum) || 1;
-
-    // Obtener ítems paginados
-    let items = await Item.find(filter)
-      .populate('ownerId', 'name email phone location')
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limitNum);
-
-    // Filtrado por proximidad (opcional)
-    if (lat && lng && radius) {
-      const earthRadiusKm = 6371;
-      const maxDistance = parseFloat(radius);
-      const latNum = parseFloat(lat);
-      const lngNum = parseFloat(lng);
-
-      if (!isNaN(latNum) && !isNaN(lngNum) && !isNaN(maxDistance)) {
-        items = items.filter(item => {
-          const dx = (item.location.lat - latNum) * earthRadiusKm * Math.PI / 180;
-          const dy = (item.location.lng - lngNum) * earthRadiusKm * Math.PI / 180 * Math.cos(latNum * Math.PI / 180);
-          const distance = Math.sqrt(dx * dx + dy * dy);
-          return distance <= maxDistance;
-        });
-      }
-    }
 
     res.set('X-Total-Count', total.toString());
     res.set('X-Total-Pages', totalPages.toString());
@@ -138,9 +166,13 @@ const updateItem = async (req, res) => {
     const item = await Item.findById(id);
     if (!item) return res.status(404).json({ msg: 'Ítem no encontrado.' });
 
-    // Verificar permisos: dueño, admin o cuenta dev
-    if (item.ownerId.toString() !== req.user.id && req.user.role !== 'admin' && req.user.role !== 'dev' && !req.user.isDev) {
-      return res.status(403).json({ msg: 'No tienes permiso para editar este material.' });
+    // Verificar permisos estrictos: solo el autor original o un administrador
+    const currentUserId = req.user?.id || req.user?._id;
+    const isOwner = item.ownerId && currentUserId && item.ownerId.toString() === currentUserId.toString();
+    const isAdmin = req.user?.role === 'admin';
+
+    if (!isOwner && !isAdmin) {
+      return res.status(403).json({ msg: 'No tienes permiso para editar este material. Solo el autor o un administrador pueden modificarlo.' });
     }
 
     const updateData = {};
@@ -152,17 +184,24 @@ const updateItem = async (req, res) => {
       const latNum = parseFloat(lat);
       const lngNum = parseFloat(lng);
       if (!isNaN(latNum) && !isNaN(lngNum) && latNum >= -90 && latNum <= 90 && lngNum >= -180 && lngNum <= 180) {
-        updateData.location = { lat: latNum, lng: lngNum };
-      } else if (lat !== undefined || lng !== undefined) {
+        updateData.location = {
+          type: 'Point',
+          coordinates: [lngNum, latNum],
+          lat: latNum,
+          lng: lngNum
+        };
+      } else {
         return res.status(400).json({ msg: 'Coordenadas de geolocalización inválidas.' });
       }
     }
 
     // Manejo inteligente de imágenes conservadas vs eliminadas
     let finalImages = [];
+    let imagesToDelete = [];
     if (keepImages !== undefined) {
-      const keepArr = Array.isArray(keepImages) ? keepImages : [keepImages];
-      finalImages = item.images.filter(img => keepArr.includes(img));
+      const keepArr = Array.isArray(keepImages) ? keepImages.filter(Boolean) : (keepImages ? [keepImages] : []);
+      finalImages = (item.images || []).filter(img => keepArr.includes(img));
+      imagesToDelete = (item.images || []).filter(img => !keepArr.includes(img));
     } else {
       finalImages = item.images || [];
     }
@@ -175,11 +214,16 @@ const updateItem = async (req, res) => {
 
     updateData.images = finalImages;
 
+    // Eliminar de Cloudinary las fotos descartadas al actualizar
+    if (imagesToDelete.length > 0) {
+      deleteFromCloudinary(imagesToDelete).catch(err => console.warn('Error borrando fotos en Cloudinary:', err.message));
+    }
+
     const updatedItem = await Item.findByIdAndUpdate(
       id,
       { $set: updateData },
       { new: true }
-    ).populate('ownerId', 'name email phone location');
+    ).populate('ownerId', 'name email phone location active');
 
     res.json(updatedItem);
   } catch (err) {
@@ -192,25 +236,42 @@ const updateItem = async (req, res) => {
 const getItemById = async (req, res, next) => {
   try {
     const item = await Item.findById(req.params.id)
-      .populate('ownerId', 'name email phone location');
+      .populate('ownerId', 'name email phone location active');
     if (!item) return res.status(404).json({ msg: 'Ítem no encontrado.' });
+
+    // P-030: Si la cuenta del propietario fue suspendida y el solicitante no es staff
+    if (item.ownerId && item.ownerId.active === false) {
+      const isStaff = req.user && (['admin', 'gestor', 'dev'].includes(req.user.role) || req.user.isDev);
+      if (!isStaff) {
+        return res.status(404).json({
+          msg: 'Esta publicación no está disponible porque la cuenta del ofertante ha sido suspendida.'
+        });
+      }
+    }
+
     res.json(item);
   } catch (err) {
     next(err);
   }
 };
 
-// Eliminar un ítem (dueño, gestor, admin o cuenta dev)
+// Eliminar un ítem (dueño, gestor o admin)
 const deleteItem = async (req, res) => {
   try {
     const item = await Item.findById(req.params.id);
     if (!item) return res.status(404).json({ msg: 'Ítem no encontrado.' });
 
-    const isOwner = item.ownerId.toString() === req.user.id;
-    const isAuthorizedStaff = ['admin', 'gestor', 'dev'].includes(req.user.role) || req.user.isDev;
+    const currentUserId = req.user?.id || req.user?._id;
+    const isOwner = item.ownerId && currentUserId && item.ownerId.toString() === currentUserId.toString();
+    const isAuthorizedStaff = ['admin', 'gestor'].includes(req.user?.role);
 
     if (!isOwner && !isAuthorizedStaff) {
       return res.status(403).json({ msg: 'No tienes permiso para eliminar este ítem.' });
+    }
+
+    // Eliminar de Cloudinary todas las imágenes asociadas al ítem
+    if (item.images && item.images.length > 0) {
+      deleteFromCloudinary(item.images).catch(err => console.warn('Error borrando fotos en Cloudinary:', err.message));
     }
 
     await Item.findByIdAndDelete(req.params.id);
@@ -243,6 +304,12 @@ const markAsBaled = async (req, res) => {
     // Actualizar estado
     item.processingState = 'fardado';
     await item.save();
+
+    // Notificar al dueño de la publicación
+    notificationService.notifyItemBaled({
+      item,
+      gestorId: req.user.id
+    }).catch(err => console.error('Error al emitir notificación de fardado:', err));
 
     res.json({ 
       msg: 'Material marcado como fardado exitosamente.', 

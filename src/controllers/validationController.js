@@ -1,5 +1,6 @@
 // backend/src/controllers/validationController.js
 const Item = require('../models/Item');
+const notificationService = require('../services/notificationService');
 
 const validateMaterial = async (req, res) => {
   try {
@@ -27,6 +28,14 @@ const validateMaterial = async (req, res) => {
     item.validationObservations = observations || '';
     item.validationDate = new Date();
     await item.save();
+
+    // 5. Emitir notificación de certificación al donante
+    const score = checklist?.score || 100;
+    notificationService.notifyItemValidated({
+      item,
+      validatorId: req.user.id,
+      checklistScore: score
+    }).catch(err => console.error('Error al emitir notificación de validación:', err));
 
     res.json({ msg: 'Material validado exitosamente.', item: { _id: item._id, processingState: item.processingState } });
   } catch (err) {

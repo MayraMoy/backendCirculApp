@@ -37,7 +37,8 @@ const register = async (req, res, next) => {
     const token = jwt.sign(
       {
         id: user._id,
-        role: user.role
+        role: user.role,
+        jti: crypto.randomUUID()
       },
       process.env.JWT_SECRET,
       {
@@ -68,7 +69,8 @@ const login = async (req, res) => {
   const { email, password } = req.body;
 
   try {
-    const user = await User.findOne({ email });
+    const sanitizedEmail = email ? email.toLowerCase().trim() : '';
+    const user = await User.findOne({ email: sanitizedEmail }).select('+password');
 
     if (!user) {
       return res.status(400).json({
@@ -99,7 +101,8 @@ const login = async (req, res) => {
       {
         id: user._id,
         role: user.role,
-        isDev
+        isDev,
+        jti: crypto.randomUUID()
       },
       process.env.JWT_SECRET,
       {
@@ -148,7 +151,8 @@ const devSwitchRole = async (req, res) => {
       {
         id: user._id,
         role: newRole,
-        isDev: true
+        isDev: true,
+        jti: crypto.randomUUID()
       },
       process.env.JWT_SECRET,
       {
@@ -236,6 +240,7 @@ const resetPassword = async (req, res, next) => {
     user.password = password;
     user.resetPasswordToken = undefined;
     user.resetPasswordExpires = undefined;
+    user.passwordChangedAt = Date.now() - 1000;
     await user.save();
 
     // 4. Notificar por correo

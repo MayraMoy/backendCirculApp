@@ -53,8 +53,16 @@ const getTransporter = async () => {
 };
 
 /**
- * Enviar correo unificado
+ * Enmascara direcciones de correo para prevenir fuga de PII en logs (P-041)
  */
+const maskEmail = (email) => {
+  if (!email || typeof email !== 'string') return '***';
+  const [local, domain] = email.split('@');
+  if (!domain) return '***';
+  const visible = local.length > 2 ? local.slice(0, 2) + '***' : local[0] + '***';
+  return `${visible}@${domain}`;
+};
+
 /**
  * Enviar correo unificado optimizado para Bandeja Principal
  */
@@ -64,7 +72,7 @@ const sendMail = async ({ to, subject, html, text }) => {
     if (!transporter) return false;
 
     const from = `"Circulapp" <${process.env.EMAIL_USER || 'no-reply@circulapp.com'}>`;
-    const info = await transporter.sendMail({
+    await transporter.sendMail({
       from,
       to,
       subject,
@@ -77,7 +85,10 @@ const sendMail = async ({ to, subject, html, text }) => {
       }
     });
 
-    console.log(`✉️ Correo enviado exitosamente a: ${to} (ID: ${info.messageId})`);
+    // P-041: No registrar correos en texto plano ni messageIds en logs de producción
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`✉️ Correo enviado exitosamente a: ${maskEmail(to)}`);
+    }
     return true;
   } catch (err) {
     console.error('❌ Error al enviar correo:', err.message);

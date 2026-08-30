@@ -1,35 +1,49 @@
-// backend/src/controllers/userController.js
+const mongoose = require('mongoose');
 const User = require('../models/User');
 const Rating = require('../models/Rating');
 
-// Obtener perfil público de un usuario (con calificaciones promedio)
+// Obtener perfil público de un usuario (con calificaciones promedio optimizadas en MongoDB)
 const getUserProfile = async (req, res) => {
   try {
-    const user = await User.findById(req.params.id).select('-password');
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ msg: 'Identificador de usuario inválido.' });
+    }
+
+    const user = await User.findById(req.params.id);
     if (!user) return res.status(404).json({ msg: 'Usuario no encontrado.' });
 
-    // Calcular promedios de calificaciones recibidas
-    const ratings = await Rating.find({ ratedId: user._id });
-    const avgQuality = ratings.length
-      ? (ratings.reduce((sum, r) => sum + r.materialQuality, 0) / ratings.length).toFixed(1)
-      : null;
-    const avgPunctuality = ratings.length && ratings.some(r => r.punctuality !== undefined)
-      ? (ratings.reduce((sum, r) => sum + (r.punctuality || 0), 0) / ratings.length).toFixed(1)
-      : null;
+    // Agregación de métricas de calificaciones directamente en MongoDB
+    const [stats] = await Rating.aggregate([
+      { $match: { ratedId: new mongoose.Types.ObjectId(req.params.id) } },
+      {
+        $group: {
+          _id: null,
+          count: { $sum: 1 },
+          avgQuality: { $avg: '$materialQuality' },
+          avgPunctuality: { $avg: '$punctuality' }
+        }
+      }
+    ]);
 
-    // ✅ Incluir TODOS los campos del usuario en la respuesta
+    // Permitir ver email/teléfono si es el propio usuario o staff administrativo
+    const isSelfOrStaff = req.user && (
+      req.user.id === user._id.toString() ||
+      ['admin', 'gestor', 'dev'].includes(req.user.role) ||
+      req.user.isDev
+    );
+
     res.json({
       id: user._id,
       name: user.name,
-      email: user.email,
+      email: isSelfOrStaff ? user.email : undefined,
+      phone: isSelfOrStaff ? (user.phone || '') : undefined,
       role: user.role,
-      phone: user.phone || '',
       location: user.location || '',
       bio: user.bio || '',
       ratings: {
-        count: ratings.length,
-        materialQuality: avgQuality,
-        punctuality: avgPunctuality
+        count: stats?.count || 0,
+        materialQuality: stats?.avgQuality ? stats.avgQuality.toFixed(1) : null,
+        punctuality: stats?.avgPunctuality ? stats.avgPunctuality.toFixed(1) : null
       }
     });
   } catch (err) {
@@ -42,25 +56,32 @@ const updateUserProfile = async (req, res) => {
   try {
     const { name, email, phone, location, bio } = req.body;
     const userId = req.user.id;
+    const updateData = {};
+
+    if (name !== undefined) updateData.name = name.trim();
+    if (phone !== undefined) updateData.phone = phone.trim();
+    if (location !== undefined) updateData.location = location.trim();
+    if (bio !== undefined) updateData.bio = bio.trim();
 
     // Solo validar email si se está actualizando y es diferente al actual
     if (email) {
+      const sanitizedEmail = email.toLowerCase().trim();
       const currentUser = await User.findById(userId);
-      if (email !== currentUser.email) {
-        const existingUser = await User.findOne({ email });
+      if (sanitizedEmail !== currentUser.email) {
+        const existingUser = await User.findOne({ email: sanitizedEmail });
         if (existingUser) {
-          return res.status(400).json({ msg: 'El email ya está en uso.' });
+          return res.status(400).json({ msg: 'El correo electrónico ya está en uso.' });
         }
       }
+      updateData.email = sanitizedEmail;
     }
 
     const updatedUser = await User.findByIdAndUpdate(
       userId,
-      { name, email, phone, location, bio },
+      { $set: updateData },
       { new: true, runValidators: true, select: '-password' }
     );
 
-    // ✅ Incluir TODOS los campos en la respuesta de actualización
     res.json({
       id: updatedUser._id,
       name: updatedUser.name,

@@ -12,6 +12,8 @@ const userRoutes = require('./routes/user.routes');
 const locationRoutes = require('./routes/location.routes');
 const ratingRoutes = require('./routes/rating.routes');
 const adminRoutes = require('./routes/admin.routes');
+const reportRoutes = require('./routes/report.routes');
+const notificationRoutes = require('./routes/notification.routes');
 // Middleware
 const auth = require('./middleware/auth');
 const { generalLimiter } = require('./middleware/rateLimiter');
@@ -19,8 +21,33 @@ const errorHandler = require('./middleware/errorHandler');
 
 const app = express();
 
-app.use(helmet());
-app.use(cors());
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://cdn.jsdelivr.net"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com", "https://cdn.jsdelivr.net", "data:"],
+      imgSrc: ["'self'", "data:", "blob:", "https://res.cloudinary.com", "https://*.tile.openstreetmap.org", "https://maps.googleapis.com", "https://maps.gstatic.com"],
+      connectSrc: ["'self'", "https://nominatim.openstreetmap.org", "https://maps.googleapis.com", "https://res.cloudinary.com"]
+    }
+  },
+  crossOriginEmbedderPolicy: false
+}));
+const allowedOrigin = process.env.FRONTEND_URL || 'http://localhost:5173';
+app.use(cors({
+  origin: (origin, callback) => {
+    // Permitir solicitudes sin origen (como herramientas de prueba o apps locales) o que coincidan con la URL configurada
+    if (!origin || origin === allowedOrigin || origin.startsWith('http://localhost:')) {
+      callback(null, true);
+    } else {
+      callback(new Error('Acceso no permitido por la política CORS.'));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 
 app.use(morgan('combined'));
 app.use(express.json({ limit: '10mb' }));
@@ -38,6 +65,8 @@ app.use('/api/validation', auth, validationRoutes);
 app.use('/api/users', auth, userRoutes);
 app.use('/api/ratings', auth, ratingRoutes);
 app.use('/api/admin', auth, adminRoutes);
+app.use('/api/reports', reportRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 // Ruta raíz de healthcheck
 app.get('/', (req, res) => {

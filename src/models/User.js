@@ -4,7 +4,7 @@ const bcrypt = require('bcryptjs');
 const userSchema = new mongoose.Schema({
   name: { type: String, required: true },
   email: { type: String, required: true, unique: true },
-  password: { type: String, required: true },
+  password: { type: String, required: true, select: false },
   role: {
     type: String,
     enum: ['user', 'gestor', 'coordinador', 'admin', 'dev'],
@@ -29,7 +29,8 @@ const userSchema = new mongoose.Schema({
   },
   bio: { type: String, maxlength: 500 },
   resetPasswordToken: { type: String },
-  resetPasswordExpires: { type: Date }
+  resetPasswordExpires: { type: Date },
+  passwordChangedAt: { type: Date }
 }, { timestamps: true });
 
 userSchema.pre('save', async function (next) {
@@ -37,5 +38,8 @@ userSchema.pre('save', async function (next) {
   this.password = await bcrypt.hash(this.password, 12);
   next();
 });
+
+userSchema.index({ active: 1 });
+userSchema.index({ resetPasswordToken: 1 });
 
 module.exports = mongoose.model('User', userSchema);

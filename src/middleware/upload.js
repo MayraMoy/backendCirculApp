@@ -18,6 +18,20 @@ const storage = new CloudinaryStorage({
   }
 });
 
-const upload = multer({ storage });
+const upload = multer({
+  storage,
+  limits: {
+    fileSize: 5 * 1024 * 1024, // Máximo 5MB por imagen
+    files: 5 // Máximo 5 imágenes simultáneas
+  },
+  fileFilter: (req, file, cb) => {
+    const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg'];
+    if (allowedMimeTypes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Formato de archivo no soportado. Solo se admiten imágenes JPG, PNG y WEBP.'), false);
+    }
+  }
+});
 
 module.exports = upload;

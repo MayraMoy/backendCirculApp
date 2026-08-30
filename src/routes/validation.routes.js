@@ -7,6 +7,6 @@ const { validateMaterialSchema } = require('../validators/validation.validator')
 const router = express.Router();
 
 // Solo usuarios autenticados y gestores
-router.post('/validate', auth, validate(validateMaterialSchema), validateMaterial);
+router.post('/validate', validate(validateMaterialSchema), validateMaterial);
 
 module.exports = router;

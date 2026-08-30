@@ -210,7 +210,7 @@ const exportItems = async (req, res) => {
         title: item.title,
         category: item.category,
         processingState: item.processingState,
-        location: `${item.location?.lat || ''}, ${item.location?.lng || ''}`,
+        location: item.address || (item.location?.coordinates ? `${item.location.coordinates[1]}, ${item.location.coordinates[0]}` : '—'),
         owner: item.ownerId?.name || '',
         email: item.ownerId?.email || ''
       });

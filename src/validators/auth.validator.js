@@ -10,8 +10,11 @@ const registerSchema = z.object({
     .trim()
     .email('Formato de correo electrónico inválido.'),
   password: z.string({ required_error: 'La contraseña es obligatoria.' })
-    .min(6, 'La contraseña debe tener al menos 6 caracteres.')
-});
+    .min(8, 'La contraseña debe tener al menos 8 caracteres.')
+    .regex(/[A-Za-z]/, 'La contraseña debe contener al menos una letra.')
+    .regex(/[0-9]/, 'La contraseña debe contener al menos un número.'),
+  role: z.enum(['user', 'gestor', 'admin']).optional()
+}).strip();
 
 const loginSchema = z.object({
   email: z.string({ required_error: 'El correo electrónico es obligatorio.' })
@@ -35,7 +38,9 @@ const forgotPasswordSchema = z.object({
 
 const resetPasswordSchema = z.object({
   password: z.string({ required_error: 'La contraseña es obligatoria.' })
-    .min(6, 'La nueva contraseña debe tener al menos 6 caracteres.')
+    .min(8, 'La nueva contraseña debe tener al menos 8 caracteres.')
+    .regex(/[A-Za-z]/, 'La nueva contraseña debe contener al menos una letra.')
+    .regex(/[0-9]/, 'La nueva contraseña debe contener al menos un número.')
 });
 
 module.exports = {

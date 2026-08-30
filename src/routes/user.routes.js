@@ -1,20 +1,21 @@
-// backend/src/routes/user.routes.js
 const express = require('express');
 const { getUserProfile, updateUserProfile } = require('../controllers/userController');
-const auth = require('../middleware/auth');
+const validate = require('../middleware/validate');
+const { updateUserProfileSchema } = require('../validators/user.validator');
 const router = express.Router();
+
+/**
+ * @route   PUT /api/users/profile
+ * @desc    Actualizar perfil del usuario autenticado
+ * @access  Privado
+ */
+router.put('/profile', validate(updateUserProfileSchema), updateUserProfile);
 
 /**
  * @route   GET /api/users/:id
  * @desc    Obtener perfil público de un usuario (con calificaciones promedio)
  * @access  Privado
  */
-router.get('/:id', auth, getUserProfile);
-router.put('/profile', auth, updateUserProfile);
-
-// Puedes agregar más rutas aquí en el futuro:
-// - Calificar a otro usuario (POST /api/users/:id/rate)
-// - Obtener historial de donaciones
-// - Editar perfil, etc.
+router.get('/:id', getUserProfile);
 
 module.exports = router;
