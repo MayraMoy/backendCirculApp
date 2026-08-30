@@ -7,6 +7,7 @@
 [![JWT](https://img.shields.io/badge/JWT-9.0.2-000000?logo=jsonwebtokens\&logoColor=white)](https://jwt.io/)
 [![Cloudinary](https://img.shields.io/badge/Cloudinary-1.41.3-3448C5?logo=cloudinary\&logoColor=white)](https://cloudinary.com/)
 [![License](https://img.shields.io/badge/License-Academic-blue)](#)
+[![Wiki](https://img.shields.io/badge/Documentation-Wiki-blue?logo=github)](https://github.com/MayraMoy/backendCirculApp/wiki)
 
 Backend de **CirculApp**, una plataforma web de economía colaborativa orientada a la gestión integral de materiales reciclables.
 
