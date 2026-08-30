@@ -71,7 +71,7 @@ const sendMail = async ({ to, subject, html, text }) => {
     const transporter = await getTransporter();
     if (!transporter) return false;
 
-    const from = `"Circulapp" <${process.env.EMAIL_USER || 'no-reply@circulapp.com'}>`;
+    const from = process.env.EMAIL_FROM || `"Circulapp ♻️" <${process.env.EMAIL_USER || 'no-reply@circulapp.com'}>`;
     await transporter.sendMail({
       from,
       to,
@@ -85,10 +85,7 @@ const sendMail = async ({ to, subject, html, text }) => {
       }
     });
 
-    // P-041: No registrar correos en texto plano ni messageIds en logs de producción
-    if (process.env.NODE_ENV !== 'production') {
-      console.log(`✉️ Correo enviado exitosamente a: ${maskEmail(to)}`);
-    }
+    console.log(`✉️ Correo "${subject}" enviado exitosamente a: ${maskEmail(to)}`);
     return true;
   } catch (err) {
     console.error('❌ Error al enviar correo:', err.message);
