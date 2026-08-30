@@ -37,8 +37,14 @@ app.use(helmet({
 const allowedOrigin = process.env.FRONTEND_URL || 'http://localhost:5173';
 app.use(cors({
   origin: (origin, callback) => {
-    // Permitir solicitudes sin origen (como herramientas de prueba o apps locales) o que coincidan con la URL configurada
-    if (!origin || origin === allowedOrigin || origin.startsWith('http://localhost:')) {
+    // Permitir solicitudes sin origen (mobile/postman), localhost o dominios de Vercel y FRONTEND_URL
+    if (
+      !origin || 
+      origin === allowedOrigin || 
+      origin.startsWith('http://localhost:') || 
+      origin.endsWith('.vercel.app') ||
+      origin.includes('vercel.app')
+    ) {
       callback(null, true);
     } else {
       callback(new Error('Acceso no permitido por la política CORS.'));
@@ -46,7 +52,8 @@ app.use(cors({
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  optionsSuccessStatus: 200
 }));
 
 app.use(morgan('combined'));
