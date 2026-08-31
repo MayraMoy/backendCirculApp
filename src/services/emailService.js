@@ -62,11 +62,57 @@ const maskEmail = (email) => {
   return `${visible}@${domain}`;
 };
 
+const axios = require('axios');
+
+/**
+ * Enviar correo vía Brevo REST API (HTTPS Puerto 443 - Nunca es bloqueado por Render ni cloud hostings)
+ */
+const sendMailViaBrevoApi = async ({ to, subject, html, text }) => {
+  const apiKey = process.env.BREVO_API_KEY || process.env.EMAIL_API_KEY;
+  if (!apiKey) return false;
+
+  const senderEmail = process.env.EMAIL_FROM_ADDRESS || 'ricardoalfredocejas97@gmail.com';
+  const senderName = process.env.EMAIL_FROM_NAME || 'Circulapp ♻️';
+
+  const payload = {
+    sender: { name: senderName, email: senderEmail },
+    to: [{ email: to }],
+    subject,
+    htmlContent: html || undefined,
+    textContent: text || undefined
+  };
+
+  const response = await axios.post('https://api.brevo.com/v3/smtp/email', payload, {
+    headers: {
+      'api-key': apiKey.trim(),
+      'Content-Type': 'application/json',
+      'Accept': 'application/json'
+    },
+    timeout: 10000
+  });
+
+  return response.status >= 200 && response.status < 300;
+};
+
 /**
  * Enviar correo unificado optimizado para Bandeja Principal
  */
 const sendMail = async ({ to, subject, html, text }) => {
   try {
+    // 1. Intentar vía Brevo REST API HTTPS si existe la clave API
+    if (process.env.BREVO_API_KEY || process.env.EMAIL_API_KEY) {
+      try {
+        const sent = await sendMailViaBrevoApi({ to, subject, html, text });
+        if (sent) {
+          console.log(`✉️ Correo "${subject}" enviado exitosamente vía Brevo HTTPS API a: ${maskEmail(to)}`);
+          return true;
+        }
+      } catch (apiErr) {
+        console.warn('⚠️ Falló Brevo API HTTPS, intentando fallback SMTP:', apiErr.response?.data || apiErr.message);
+      }
+    }
+
+    // 2. Fallback a Nodemailer SMTP
     const transporter = await getTransporter();
     if (!transporter) return false;
 
@@ -85,7 +131,7 @@ const sendMail = async ({ to, subject, html, text }) => {
       }
     });
 
-    console.log(`✉️ Correo "${subject}" enviado exitosamente a: ${maskEmail(to)}`);
+    console.log(`✉️ Correo "${subject}" enviado exitosamente vía SMTP a: ${maskEmail(to)}`);
     return true;
   } catch (err) {
     console.error('❌ Error al enviar correo:', err.message);
