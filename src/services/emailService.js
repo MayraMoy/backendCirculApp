@@ -10,32 +10,23 @@ const getTransporter = async () => {
   if (transporterInstance) return transporterInstance;
 
   if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
-    const isGmail = (process.env.EMAIL_SERVICE || '').toLowerCase() === 'gmail' || (process.env.EMAIL_HOST || '').includes('gmail');
-    const options = isGmail
-      ? {
-          host: 'smtp.gmail.com',
-          port: 465,
-          secure: true, // SSL directo
-          auth: {
-            user: process.env.EMAIL_USER.trim(),
-            pass: process.env.EMAIL_PASS.replace(/\s+/g, '')
-          },
-          connectionTimeout: 5000,
-          greetingTimeout: 5000,
-          socketTimeout: 7000
-        }
-      : {
-          host: process.env.EMAIL_HOST || 'smtp.gmail.com',
-          port: parseInt(process.env.EMAIL_PORT, 10) || 465,
-          secure: process.env.EMAIL_PORT === '465' || !process.env.EMAIL_PORT,
-          auth: {
-            user: process.env.EMAIL_USER.trim(),
-            pass: process.env.EMAIL_PASS.trim()
-          },
-          connectionTimeout: 5000,
-          greetingTimeout: 5000,
-          socketTimeout: 7000
-        };
+    const isGmail = (process.env.EMAIL_SERVICE || '').toLowerCase() === 'gmail';
+    const host = process.env.EMAIL_HOST || (isGmail ? 'smtp.gmail.com' : 'smtp-relay.brevo.com');
+    const port = parseInt(process.env.EMAIL_PORT, 10) || (isGmail ? 465 : 587);
+    const secure = port === 465;
+
+    const options = {
+      host,
+      port,
+      secure,
+      auth: {
+        user: process.env.EMAIL_USER.trim(),
+        pass: process.env.EMAIL_PASS.trim()
+      },
+      connectionTimeout: 10000,
+      greetingTimeout: 10000,
+      socketTimeout: 15000
+    };
 
     transporterInstance = nodemailer.createTransport(options);
     return transporterInstance;
@@ -79,7 +70,8 @@ const sendMail = async ({ to, subject, html, text }) => {
     const transporter = await getTransporter();
     if (!transporter) return false;
 
-    const from = process.env.EMAIL_FROM || `"Circulapp ♻️" <${process.env.EMAIL_USER || 'no-reply@circulapp.com'}>`;
+    const defaultSender = 'ricardoalfredocejas97@gmail.com';
+    const from = process.env.EMAIL_FROM || `"Circulapp ♻️" <${(process.env.EMAIL_USER && !process.env.EMAIL_USER.includes('@smtp-brevo.com')) ? process.env.EMAIL_USER : defaultSender}>`;
     await transporter.sendMail({
       from,
       to,
