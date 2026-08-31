@@ -12,7 +12,7 @@ const getTransporter = async () => {
   if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
     const isGmail = (process.env.EMAIL_SERVICE || '').toLowerCase() === 'gmail';
     const host = process.env.EMAIL_HOST || (isGmail ? 'smtp.gmail.com' : 'smtp-relay.brevo.com');
-    const port = parseInt(process.env.EMAIL_PORT, 10) || (isGmail ? 465 : 587);
+    const port = parseInt(process.env.EMAIL_PORT, 10) || 465;
     const secure = port === 465;
 
     const options = {
