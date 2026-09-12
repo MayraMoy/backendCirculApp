@@ -1,5 +1,6 @@
 // backend/src/app.js
 const express = require('express');
+const path = require('path');
 const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
@@ -14,6 +15,8 @@ const ratingRoutes = require('./routes/rating.routes');
 const adminRoutes = require('./routes/admin.routes');
 const reportRoutes = require('./routes/report.routes');
 const notificationRoutes = require('./routes/notification.routes');
+const recyclingPointRoutes = require('./routes/recyclingPoint.routes');
+const feedbackRoutes = require('./routes/feedback.routes');
 // Middleware
 const auth = require('./middleware/auth');
 const { generalLimiter } = require('./middleware/rateLimiter');
@@ -29,8 +32,27 @@ app.use(helmet({
       scriptSrc: ["'self'"],
       styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://cdn.jsdelivr.net"],
       fontSrc: ["'self'", "https://fonts.gstatic.com", "https://cdn.jsdelivr.net", "data:"],
-      imgSrc: ["'self'", "data:", "blob:", "https://res.cloudinary.com", "https://*.tile.openstreetmap.org", "https://maps.googleapis.com", "https://maps.gstatic.com"],
-      connectSrc: ["'self'", "https://nominatim.openstreetmap.org", "https://maps.googleapis.com", "https://res.cloudinary.com"]
+      imgSrc: [
+        "'self'",
+        "data:",
+        "blob:",
+        "https://res.cloudinary.com",
+        "https://*.tile.openstreetmap.org",
+        "https://maps.googleapis.com",
+        "https://maps.gstatic.com",
+        "https://tiles.openfreemap.org",
+        "https://*.openfreemap.org"
+      ],
+      connectSrc: [
+        "'self'",
+        "https://nominatim.openstreetmap.org",
+        "https://maps.googleapis.com",
+        "https://res.cloudinary.com",
+        "https://tiles.openfreemap.org",
+        "https://*.openfreemap.org"
+      ],
+      workerSrc: ["'self'", "blob:"],
+      childSrc: ["'self'", "blob:"]
     }
   },
   crossOriginEmbedderPolicy: false
@@ -60,6 +82,9 @@ app.use(cors({
 app.use(morgan('combined'));
 app.use(express.json({ limit: '10mb' }));
 
+// Servir archivos subidos estáticos localmente
+app.use('/uploads', express.static(path.join(__dirname, '../public/uploads')));
+
 // Límite general para proteger la API contra DoS
 app.use('/api/', generalLimiter);
 
@@ -67,6 +92,8 @@ app.use('/api/', generalLimiter);
 app.use('/api/auth', authRoutes);
 app.use('/api/items', itemRoutes);              // Lectura pública, mutaciones protegidas internamente
 app.use('/api/location', locationRoutes);
+app.use('/api/recycling-points', recyclingPointRoutes);
+app.use('/api/feedback', feedbackRoutes);
 
 // Rutas 100% protegidas
 app.use('/api/validation', auth, validationRoutes);

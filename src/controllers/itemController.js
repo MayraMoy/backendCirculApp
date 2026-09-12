@@ -16,8 +16,20 @@ const createItem = async (req, res) => {
       return res.status(400).json({ msg: 'Coordenadas de geolocalización inválidas (Latitud [-90, 90], Longitud [-180, 180]).' });
     }
 
-    // Procesar imágenes subidas con Multer y Cloudinary
-    const imageUrls = req.files ? req.files.map(f => f.path) : [];
+    // Procesar imágenes subidas (Cloudinary o Disco Local)
+    const imageUrls = req.files ? req.files.map(f => {
+      // Multer-storage-cloudinary proporciona la URL completa en f.path o f.secure_url
+      if (f.path && (f.path.startsWith('http://') || f.path.startsWith('https://'))) {
+        return f.path;
+      }
+      if (f.secure_url) {
+        return f.secure_url;
+      }
+      if (f.filename) {
+        return `${req.protocol}://${req.get('host')}/uploads/items/${f.filename}`;
+      }
+      return f.path || f.url;
+    }) : [];
 
     const newItem = new Item({
       title,
@@ -206,9 +218,20 @@ const updateItem = async (req, res) => {
       finalImages = item.images || [];
     }
 
-    // Subir nuevas imágenes enviadas
+    // Subir nuevas imágenes enviadas (Cloudinary o Disco Local)
     if (req.files && req.files.length > 0) {
-      const newUrls = req.files.map(file => file.path || file.url);
+      const newUrls = req.files.map(file => {
+        if (file.path && (file.path.startsWith('http://') || file.path.startsWith('https://'))) {
+          return file.path;
+        }
+        if (file.secure_url) {
+          return file.secure_url;
+        }
+        if (file.filename) {
+          return `${req.protocol}://${req.get('host')}/uploads/items/${file.filename}`;
+        }
+        return file.path || file.url;
+      });
       finalImages = [...finalImages, ...newUrls];
     }
 
