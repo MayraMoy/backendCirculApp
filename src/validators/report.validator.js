@@ -45,7 +45,12 @@ const resolveReportSchema = z.object({
   resolutionNotes: z.string().max(500).optional().default('')
 }).strip();
 
+const dismissReportSchema = z.object({
+  resolutionNotes: z.string().max(500).optional().default('')
+}).strip();
+
 module.exports = {
   createReportSchema,
-  resolveReportSchema
+  resolveReportSchema,
+  dismissReportSchema
 };

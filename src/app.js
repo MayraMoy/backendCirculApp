@@ -60,13 +60,12 @@ app.use(helmet({
 const allowedOrigin = process.env.FRONTEND_URL || 'http://localhost:5173';
 app.use(cors({
   origin: (origin, callback) => {
-    // Permitir solicitudes sin origen (mobile/postman), localhost o dominios de Vercel y FRONTEND_URL
+    // Permitir solicitudes sin origen (mobile/curl), FRONTEND_URL configurado o localhost
     if (
       !origin || 
       origin === allowedOrigin || 
-      origin.startsWith('http://localhost:') || 
-      origin.endsWith('.vercel.app') ||
-      origin.includes('vercel.app')
+      origin.startsWith('http://localhost:') ||
+      origin.startsWith('http://127.0.0.1:')
     ) {
       callback(null, true);
     } else {
@@ -103,7 +102,11 @@ app.use('/api/admin', auth, adminRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/notifications', notificationRoutes);
 
-// Ruta raíz de healthcheck
+// Ruta raíz y healthcheck de monitoreo
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok', msg: 'Circulapp Backend Healthy', timestamp: new Date().toISOString() });
+});
+
 app.get('/', (req, res) => {
   res.json({ msg: '🚀 Circulapp Backend está funcionando' });
 });

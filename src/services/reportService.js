@@ -1,6 +1,15 @@
 const Item = require('../models/Item');
 const ExcelJS = require('exceljs');
 
+const sanitizeExcelCell = (val) => {
+  if (typeof val !== 'string') return val;
+  const trimmed = val.trim();
+  if (['=', '+', '-', '@'].includes(trimmed.charAt(0))) {
+    return `'${trimmed}`;
+  }
+  return val;
+};
+
 const exportItems = async (req, res) => {
   try {
     const items = await Item.find()
@@ -207,12 +216,12 @@ const exportItems = async (req, res) => {
 
     items.forEach(item => {
       detalle.addRow({
-        title: item.title,
-        category: item.category,
-        processingState: item.processingState,
-        location: item.address || (item.location?.coordinates ? `${item.location.coordinates[1]}, ${item.location.coordinates[0]}` : '—'),
-        owner: item.ownerId?.name || '',
-        email: item.ownerId?.email || ''
+        title: sanitizeExcelCell(item.title),
+        category: sanitizeExcelCell(item.category),
+        processingState: sanitizeExcelCell(item.processingState),
+        location: sanitizeExcelCell(item.address || (item.location?.coordinates ? `${item.location.coordinates[1]}, ${item.location.coordinates[0]}` : '—')),
+        owner: sanitizeExcelCell(item.ownerId?.name || ''),
+        email: sanitizeExcelCell(item.ownerId?.email || '')
       });
     });
 

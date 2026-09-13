@@ -3,7 +3,7 @@ const express = require('express');
 const router = express.Router();
 const auth = require('../middleware/auth');
 const validate = require('../middleware/validate');
-const { createReportSchema } = require('../validators/report.validator');
+const { createReportSchema, dismissReportSchema } = require('../validators/report.validator');
 const {
   createReport,
   getReports,
@@ -22,12 +22,12 @@ router.post('/', validate(createReportSchema), createReport);
 router.get('/', getReports);
 
 // Desestimar denuncia (Admin y Gestores)
-router.patch('/:id/dismiss', dismissReport);
+router.patch('/:id/dismiss', validate(dismissReportSchema), dismissReport);
 
 // Eliminar publicación denunciada (Admin y Gestores)
-router.delete('/:id/item', deleteReportedItem);
+router.delete('/:id/item', validate(dismissReportSchema), deleteReportedItem);
 
 // Desactivar usuario denunciado (Admin y Gestores)
-router.patch('/:id/deactivate-user', deactivateReportedUser);
+router.patch('/:id/deactivate-user', validate(dismissReportSchema), deactivateReportedUser);
 
 module.exports = router;

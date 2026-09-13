@@ -8,6 +8,11 @@ const {
   deleteRecyclingPoint
 } = require('../controllers/recyclingPointController');
 const auth = require('../middleware/auth');
+const validate = require('../middleware/validate');
+const {
+  createRecyclingPointSchema,
+  updateRecyclingPointSchema
+} = require('../validators/recyclingPoint.validator');
 const router = express.Router();
 
 // Middleware para autorizar gestores, coordinadores y administradores
@@ -24,8 +29,8 @@ router.get('/', getRecyclingPoints);
 router.get('/:id', getRecyclingPointById);
 
 // Rutas de administración y gestión
-router.post('/', auth, managerOrAdmin, createRecyclingPoint);
-router.put('/:id', auth, managerOrAdmin, updateRecyclingPoint);
+router.post('/', auth, managerOrAdmin, validate(createRecyclingPointSchema), createRecyclingPoint);
+router.put('/:id', auth, managerOrAdmin, validate(updateRecyclingPointSchema), updateRecyclingPoint);
 router.delete('/:id', auth, managerOrAdmin, deleteRecyclingPoint);
 
 module.exports = router;

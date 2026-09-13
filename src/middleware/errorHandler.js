@@ -72,9 +72,14 @@ const errorHandler = (err, req, res, next) => {
 
   // 6. Error general o no controlado
   const statusCode = err.statusCode || 500;
+  const isProduction = process.env.NODE_ENV === 'production';
+  const clientMessage = (statusCode >= 500 && isProduction)
+    ? 'Error interno del servidor. Por favor intenta más tarde.'
+    : (err.message || 'Error interno del servidor.');
+
   res.status(statusCode).json({
     status: statusCode >= 500 ? 'error' : 'fail',
-    msg: err.message || 'Error interno del servidor.',
+    msg: clientMessage,
     statusCode
   });
 };

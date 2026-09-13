@@ -4,14 +4,20 @@ const router = express.Router();
 const auth = require("../middleware/auth");
 const { optionalAuth } = require("../middleware/auth");
 const upload = require("../middleware/upload");
+const validate = require("../middleware/validate");
+const { feedbackLimiter } = require("../middleware/rateLimiter");
+const {
+  createFeedbackSchema,
+  updateFeedbackStatusSchema
+} = require("../validators/feedback.validator");
 const {
   createFeedback,
   getFeedbacks,
   updateFeedbackStatus
 } = require("../controllers/feedbackController");
 
-// Crear feedback o reporte (público o autenticado)
-router.post("/", optionalAuth, upload.array("attachments", 3), createFeedback);
+// Crear feedback o reporte (público o autenticado) con rate limiter y validación Zod
+router.post("/", feedbackLimiter, optionalAuth, upload.array("attachments", 3), validate(createFeedbackSchema), createFeedback);
 
 // Listar comentarios y reportes (acceso transparente para todos los roles y visitantes)
 router.get("/", optionalAuth, getFeedbacks);
@@ -23,6 +29,6 @@ router.patch("/:id/status", auth, (req, res, next) => {
     return res.status(403).json({ msg: "Acceso denegado: solo personal autorizado." });
   }
   next();
-}, updateFeedbackStatus);
+}, validate(updateFeedbackStatusSchema), updateFeedbackStatus);
 
 module.exports = router;

@@ -133,11 +133,11 @@ const searchItems = async (req, res) => {
     const limitNum = Math.min(parseInt(req.query.limit, 10) || 50, 100);
     const skip = (pageNum - 1) * limitNum;
 
-    // Obtener ítems paginados directamente de MongoDB
+    // Obtener ítems paginados directamente de MongoDB sin exponer PII (email / teléfono)
     const [total, rawItems] = await Promise.all([
       Item.countDocuments(filter),
       Item.find(filter)
-        .populate('ownerId', 'name email phone location active')
+        .populate('ownerId', 'name location active')
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limitNum)
@@ -272,7 +272,20 @@ const getItemById = async (req, res, next) => {
       }
     }
 
-    res.json(item);
+    const itemObj = item.toObject();
+    // 🔒 Proteger PII: Si el solicitante no está autenticado, no exponer teléfono ni email
+    if (!req.user && itemObj.ownerId) {
+      delete itemObj.ownerId.email;
+      delete itemObj.ownerId.phone;
+    } else if (req.user && itemObj.ownerId) {
+      const isSelfOrStaff = req.user.id === itemObj.ownerId._id?.toString() ||
+        ['admin', 'gestor', 'dev'].includes(req.user.role) || req.user.isDev;
+      if (!isSelfOrStaff) {
+        delete itemObj.ownerId.email;
+      }
+    }
+
+    res.json(itemObj);
   } catch (err) {
     next(err);
   }
@@ -313,20 +326,20 @@ const markAsBaled = async (req, res) => {
 
     const { id } = req.params;
 
-    // Buscar ítem
-    const item = await Item.findById(id);
-    if (!item) return res.status(404).json({ msg: 'Ítem no encontrado.' });
+    // Actualización atómica en MongoDB para prevenir condiciones de carrera (TOCTOU)
+    const item = await Item.findOneAndUpdate(
+      { _id: id, processingState: { $in: ['sin_procesar', 'en_proceso'] } },
+      { $set: { processingState: 'fardado' } },
+      { new: true }
+    );
 
-    // Verificar que el ítem esté en un estado que permita fardado
-    if (!['sin_procesar', 'en_proceso'].includes(item.processingState)) {
+    if (!item) {
+      const existing = await Item.findById(id);
+      if (!existing) return res.status(404).json({ msg: 'Ítem no encontrado.' });
       return res.status(400).json({ 
-        msg: `El ítem ya está en estado "${item.processingState}". Solo se puede fardar desde "sin_procesar" o "en_proceso".` 
+        msg: `El ítem ya está en estado "${existing.processingState}". Solo se puede fardar desde "sin_procesar" o "en_proceso".` 
       });
     }
-
-    // Actualizar estado
-    item.processingState = 'fardado';
-    await item.save();
 
     // Notificar al dueño de la publicación
     notificationService.notifyItemBaled({

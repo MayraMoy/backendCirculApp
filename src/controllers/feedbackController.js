@@ -75,10 +75,16 @@ const getFeedbacks = async (req, res) => {
     if (category) filter.category = category;
     if (status) filter.status = status;
 
-    const feedbacks = await FeedbackReport.find(filter)
+    const isStaff = req.user && (['admin', 'gestor', 'dev', 'coordinador'].includes(req.user.role) || req.user.isDev);
+    const queryBuilder = FeedbackReport.find(filter)
       .sort({ createdAt: -1 })
-      .limit(parseInt(limit, 10))
-      .lean();
+      .limit(Math.min(parseInt(limit, 10) || 50, 100));
+
+    if (!isStaff) {
+      queryBuilder.select('-userEmail');
+    }
+
+    const feedbacks = await queryBuilder.lean();
 
     res.json({
       total: feedbacks.length,

@@ -7,21 +7,24 @@ const getRecyclingPoints = async (req, res) => {
     const { status, category, search, lat, lng, maxDistance } = req.query;
     const filter = {};
 
-    if (status) {
+    if (status && typeof status === 'string') {
       filter.status = status;
     }
 
-    if (category) {
+    if (category && typeof category === 'string') {
       filter.acceptedCategories = category;
     }
 
-    if (search) {
-      const searchRegex = new RegExp(search.trim(), 'i');
-      filter.$or = [
-        { name: searchRegex },
-        { address: searchRegex },
-        { description: searchRegex }
-      ];
+    if (search && typeof search === 'string') {
+      const safeSearch = search.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      if (safeSearch.length > 0) {
+        const searchRegex = new RegExp(safeSearch, 'i');
+        filter.$or = [
+          { name: searchRegex },
+          { address: searchRegex },
+          { description: searchRegex }
+        ];
+      }
     }
 
     // Búsqueda por cercanía geoespacial si se proporcionan coordenadas
@@ -119,7 +122,7 @@ const createRecyclingPoint = async (req, res) => {
       pinColor: pinColor || '#10B981',
       pinIcon: pinIcon || 'recycle',
       status: status || 'activo',
-      createdBy: req.user?._id
+      createdBy: req.user?.id || req.user?._id
     });
 
     const savedPoint = await newPoint.save();
@@ -175,7 +178,7 @@ const updateRecyclingPoint = async (req, res) => {
       }
     }
 
-    point.updatedBy = req.user?._id;
+    point.updatedBy = req.user?.id || req.user?._id;
     const updated = await point.save();
 
     res.json(updated);

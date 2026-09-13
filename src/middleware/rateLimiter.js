@@ -41,8 +41,20 @@ const geocodeLimiter = rateLimit({
   }
 });
 
+// Límite para envío de feedback y reportes -> 10 envíos cada 15 min
+const feedbackLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    msg: 'Has alcanzado el límite de envío de comentarios. Por favor espera unos minutos antes de enviar más feedback.'
+  }
+});
+
 module.exports = {
   authLimiter,
   generalLimiter,
-  geocodeLimiter
+  geocodeLimiter,
+  feedbackLimiter
 };

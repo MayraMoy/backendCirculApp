@@ -12,22 +12,28 @@ const validateMaterial = async (req, res) => {
       return res.status(403).json({ msg: 'Solo los gestores y administradores pueden validar materiales.' });
     }
 
-    // 2. Validar ítem
-    const item = await Item.findById(itemId);
-    if (!item) return res.status(404).json({ msg: 'Ítem no encontrado.' });
+    // 2. Actualización atómica en MongoDB (previene TOCTOU / doble certificación)
+    const item = await Item.findOneAndUpdate(
+      { _id: itemId, processingState: 'fardado' },
+      {
+        $set: {
+          processingState: 'validado',
+          validatedBy: req.user.id,
+          validationChecklist: checklist,
+          validationObservations: observations || '',
+          validationDate: new Date()
+        }
+      },
+      { new: true }
+    );
 
-    // 3. Verificar estado
-    if (item.processingState !== 'fardado') {
-      return res.status(400).json({ msg: 'El ítem debe estar en estado "fardado" para validarlo.' });
+    if (!item) {
+      const existing = await Item.findById(itemId);
+      if (!existing) return res.status(404).json({ msg: 'Ítem no encontrado.' });
+      return res.status(400).json({ 
+        msg: `El ítem debe estar en estado "fardado" para validarlo (Estado actual: "${existing.processingState}").` 
+      });
     }
-
-    // 4. Actualizar ítem
-    item.processingState = 'validado';
-    item.validatedBy = req.user.id;
-    item.validationChecklist = checklist;
-    item.validationObservations = observations || '';
-    item.validationDate = new Date();
-    await item.save();
 
     // 5. Emitir notificación de certificación al donante
     const score = checklist?.score || 100;

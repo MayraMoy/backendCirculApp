@@ -14,6 +14,9 @@ describe("Suite de Pruebas: Sistema de Feedback y Reportes de Desarrollo", () =>
 
   after(async () => {
     await FeedbackReport.deleteMany({ comment: "Prueba automatizada de feedback" });
+    if (mongoose.connection.readyState !== 0) {
+      await mongoose.connection.close();
+    }
   });
 
   test("POST /api/feedback - Debe permitir a un usuario o visitante enviar comentarios", async () => {

@@ -89,11 +89,26 @@ const getAdminItems = async (req, res) => {
   }
 };
 
+// Sanitizar valores de celda para prevenir inyección de fórmulas (CWE-1236)
+const sanitizeExcelCell = (val) => {
+  if (typeof val !== 'string') return val;
+  const trimmed = val.trim();
+  if (['=', '+', '-', '@'].includes(trimmed.charAt(0))) {
+    return `'${trimmed}`;
+  }
+  return val;
+};
+
 // POST /api/admin/users/:id/promote
 const promoteUser = async (req, res) => {
   try {
     const user = await User.findById(req.params.id);
     if (!user) return res.status(404).json({ msg: 'Usuario no encontrado.' });
+
+    // Prevenir que el admin se degrade a sí mismo
+    if (req.params.id === req.user.id && req.body.role && req.body.role !== 'admin') {
+      return res.status(400).json({ msg: 'No puedes revocar tus propios privilegios de administrador.' });
+    }
     
     const targetRole = req.body.role || (user.role === 'user' ? 'gestor' : user.role);
     if (!['user', 'gestor', 'admin'].includes(targetRole)) {
@@ -111,6 +126,18 @@ const promoteUser = async (req, res) => {
 const updateAdminUser = async (req, res) => {
   try {
     const { name, phone, role, location, active } = req.body;
+    const isSelf = req.params.id === req.user.id;
+
+    // Salvaguardas para cuenta de administrador activa
+    if (isSelf) {
+      if (active === false) {
+        return res.status(400).json({ msg: 'Por seguridad, no puedes desactivar tu propia cuenta de administrador.' });
+      }
+      if (role && role !== 'admin') {
+        return res.status(400).json({ msg: 'Por seguridad, no puedes degradar tu propio rol de administrador.' });
+      }
+    }
+
     const updateData = {};
     if (name !== undefined) updateData.name = name;
     if (phone !== undefined) updateData.phone = phone;
@@ -369,13 +396,13 @@ const getAdminReport = async (req, res) => {
         validatedItems.forEach(item => {
           sheet.addRow({
             id: item._id.toString().slice(-6).toUpperCase(),
-            title: item.title,
-            category: item.category,
-            address: item.address || 'Punto comunal',
-            owner: item.ownerId?.name ? `${item.ownerId.name} (${item.ownerId.email || ''})` : '—',
-            validator: item.validatedBy?.name || 'Gestor Comunal',
+            title: sanitizeExcelCell(item.title),
+            category: sanitizeExcelCell(item.category),
+            address: sanitizeExcelCell(item.address || 'Punto comunal'),
+            owner: sanitizeExcelCell(item.ownerId?.name ? `${item.ownerId.name} (${item.ownerId.email || ''})` : '—'),
+            validator: sanitizeExcelCell(item.validatedBy?.name || 'Gestor Comunal'),
             date: item.validationDate ? new Date(item.validationDate).toLocaleDateString('es-AR') : new Date(item.updatedAt || item.createdAt).toLocaleDateString('es-AR'),
-            notes: item.validationObservations || 'Validado conforme normas comunales'
+            notes: sanitizeExcelCell(item.validationObservations || 'Validado conforme normas comunales')
           });
         });
 
